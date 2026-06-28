@@ -1,0 +1,50 @@
+{
+  "name": "class-sync-desktop",
+  "version": "1.0.0",
+  "description": "Class Sync Student Monitoring System - Desktop Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "prepare:php": "powershell -ExecutionPolicy Bypass -File scripts/prepare-php.ps1",
+    "build": "npx electron-builder",
+    "build:win": "npx electron-builder --win",
+    "build:desktop": "npm run prepare:php && npm run build:win"
+  },
+  "author": "Class Sync",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^42.5.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.classsync.app",
+    "productName": "Class Sync",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "extraResources": [
+      {
+        "from": "../",
+        "to": "laravel",
+        "filter": [
+          "**/*",
+          "!electron/**",
+          "!node_modules/**",
+          "!.git/**"
+        ]
+      }
+    ]
+  }
+}

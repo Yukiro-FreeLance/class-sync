@@ -1,0 +1,292 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        background-color: var(--app-main-bg, #f4f6fb);
+        @apply text-slate-800 antialiased;
+    }
+
+    .dark body {
+        @apply bg-slate-950 text-slate-100;
+    }
+}
+
+@layer components {
+    /* Layout */
+    .app-sidebar {
+        background-color: var(--app-sidebar-bg, #ffffff);
+        @apply fixed lg:sticky top-0 left-0 z-50 h-screen border-r border-surface-border dark:border-slate-800 flex flex-col;
+    }
+
+    .app-topbar {
+        background-color: var(--app-header-bg, rgba(255, 255, 255, 0.92));
+        @apply sticky top-0 z-30 backdrop-blur-md border-b border-surface-border dark:border-slate-800;
+    }
+
+    .app-main {
+        background-color: var(--app-main-bg, #f4f6fb);
+        @apply flex-1 min-w-0 dark:bg-slate-950;
+    }
+
+    .app-sidebar-brand {
+        background: linear-gradient(
+            to bottom,
+            var(--app-sidebar-brand-bg, rgba(240, 253, 244, 0.8)),
+            var(--app-sidebar-bg, #ffffff)
+        );
+    }
+
+    /* Cards & panels */
+    .panel {
+        @apply bg-white dark:bg-slate-900 rounded-2xl border border-surface-border dark:border-slate-800 shadow-card p-5;
+    }
+
+    .panel-flush {
+        @apply bg-white dark:bg-slate-900 rounded-2xl border border-surface-border dark:border-slate-800 shadow-card overflow-hidden;
+    }
+
+    .stat-card {
+        @apply bg-white dark:bg-slate-900 rounded-2xl border border-surface-border dark:border-slate-800 shadow-card p-4 hover:shadow-card-hover transition-shadow;
+    }
+
+    /* Navigation */
+    .nav-link {
+        @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150;
+    }
+
+    .nav-link-active {
+        @apply bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300;
+    }
+
+    .nav-link-inactive {
+        @apply text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white;
+    }
+
+    /* Buttons */
+    .btn-primary {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition disabled:opacity-60;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl border border-surface-border dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition;
+    }
+
+    .btn-ghost {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition;
+    }
+
+    /* Form controls */
+    .input-field {
+        @apply block w-full rounded-xl border-surface-border dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-sm;
+    }
+
+    .select-field {
+        @apply block w-full rounded-xl border-surface-border dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm focus:border-brand-500 focus:ring-brand-500 text-sm;
+    }
+
+    /* Badges */
+    .badge {
+        @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+    }
+
+    .badge-live {
+        @apply badge bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400;
+    }
+
+    .badge-soon {
+        @apply badge bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400;
+    }
+
+    /* Page header */
+    .page-title {
+        @apply text-2xl font-bold text-slate-900 dark:text-white tracking-tight;
+    }
+
+    .page-subtitle {
+        @apply text-sm text-slate-500 dark:text-slate-400 mt-1;
+    }
+
+    /* Table */
+    .data-table thead {
+        @apply bg-slate-50 dark:bg-slate-800/50;
+    }
+
+    .data-table th {
+        @apply px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400;
+    }
+
+    .data-table td {
+        @apply px-5 py-4 text-sm text-slate-700 dark:text-slate-300;
+    }
+
+    .data-table tbody tr {
+        @apply border-t border-surface-border dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition;
+    }
+
+    /* Bulk attendance */
+    .attendance-session-card {
+        @apply panel overflow-hidden p-0;
+    }
+
+    .attendance-session-header {
+        @apply px-5 py-4 bg-gradient-to-br from-green-700 to-green-700 text-white;
+    }
+
+    .attendance-stat-pill {
+        @apply flex flex-col items-center justify-center rounded-xl px-2 py-2.5 border border-surface-border dark:border-slate-800 bg-white dark:bg-slate-900 transition;
+    }
+
+    .attendance-stat-pill-active {
+        @apply ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-slate-900 border-brand-200 dark:border-brand-800;
+    }
+
+    .attendance-status-btn {
+        @apply flex items-center justify-center rounded-lg text-[11px] sm:text-xs font-semibold py-2 px-1 border transition-all duration-150 min-w-0;
+    }
+
+    .attendance-status-btn-active {
+        @apply text-white border-transparent shadow-sm scale-[1.02];
+    }
+
+    .attendance-status-btn-inactive {
+        @apply bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-surface-border dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200;
+    }
+
+    .attendance-student-row {
+        @apply px-4 sm:px-5 py-3.5 border-b border-surface-border dark:border-slate-800 last:border-0 hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition;
+    }
+
+    /* Legacy aliases */
+    .glass-card {
+        @apply panel;
+    }
+
+    .glass {
+        @apply bg-white dark:bg-slate-900 border border-surface-border dark:border-slate-800 shadow-card;
+    }
+
+    /* Marketing / landing page */
+    .marketing-page {
+        @apply min-h-full bg-slate-50 text-slate-900 antialiased;
+    }
+
+    .marketing-nav {
+        @apply relative z-10 border-b border-slate-200/80 bg-white/70 backdrop-blur-md;
+    }
+
+    .marketing-btn-primary {
+        @apply inline-flex items-center justify-center gap-2 rounded-full bg-green-700 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand-500/25 hover:bg-green-700 transition;
+    }
+
+    .marketing-btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition;
+    }
+
+    .marketing-badge {
+        @apply inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5 text-sm font-medium text-sky-800;
+    }
+
+    .marketing-mockup {
+        @apply rounded-3xl bg-white border border-slate-200/80 shadow-2xl shadow-slate-300/40 overflow-hidden;
+    }
+
+    .marketing-feature-card {
+        @apply rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition hover:bg-white/10;
+    }
+
+    @keyframes fade-up {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-fade-up {
+        animation: fade-up 0.7s ease-out both;
+    }
+
+    .animate-fade-up-delay {
+        animation: fade-up 0.7s ease-out 0.15s both;
+    }
+
+    /* Auth / login */
+    .auth-input {
+        @apply block w-full rounded-xl border border-slate-200 bg-white py-3 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none;
+    }
+
+    .auth-btn {
+        @apply w-full rounded-xl bg-green-700 py-3.5 text-sm font-semibold text-white shadow-md shadow-brand-500/20 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition disabled:opacity-60;
+    }
+
+    .auth-panel {
+        @apply relative hidden lg:flex flex-col justify-between bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 p-12 overflow-hidden;
+    }
+
+    /* Student lists — screen + print */
+    .student-list-table {
+        @apply border-collapse;
+    }
+
+    .student-list-table th,
+    .student-list-table td {
+        @apply border border-slate-200 px-2.5 py-1.5 text-left align-middle;
+    }
+
+    .student-list-table th {
+        @apply bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600;
+    }
+
+    .student-list-document {
+        @apply bg-white dark:bg-slate-900;
+    }
+
+    .print-only {
+        display: none;
+    }
+
+    @media print {
+        .no-print,
+        aside,
+        header,
+        nav,
+        [data-sidebar],
+        .sidebar,
+        x-page-header {
+            display: none !important;
+        }
+
+        .print-only {
+            display: block !important;
+        }
+
+        body,
+        main,
+        .student-list-page,
+        .student-list-document {
+            background: white !important;
+            color: black !important;
+        }
+
+        .student-list-document {
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+        }
+
+        .student-list-table th {
+            background: #f1f5f9 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .break-inside-avoid {
+            break-inside: avoid;
+        }
+    }
+}
