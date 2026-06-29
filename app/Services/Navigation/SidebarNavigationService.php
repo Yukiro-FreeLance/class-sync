@@ -148,7 +148,11 @@ class SidebarNavigationService
             'settings' => request()->routeIs('settings.general', 'settings.attendance'),
             'audit-logs' => request()->routeIs('audit-logs.*'),
             'backups' => request()->routeIs('settings.backup'),
-            'application-package' => request()->routeIs('settings.application-package', 'settings.application-package.download'),
+            'application-package' => request()->routeIs(
+                'settings.application-package',
+                'settings.application-package.download',
+                'settings.application-package.icon',
+            ),
             'help' => request()->routeIs('help.*'),
             default => request()->routeIs($route),
         };

@@ -94,7 +94,7 @@ trait HasAttendanceClassFilters
         $department = Department::query()
             ->active()
             ->ordered()
-            ->when($user && ! $teacherScope->bypassesScope($user), function ($query) use ($accessibleSectionIds) {
+            ->when($user && ! $teacherScope->bypassesAttendanceScope($user), function ($query) use ($accessibleSectionIds) {
                 $query->whereHas('gradeLevels.sections', fn ($sectionQuery) => $sectionQuery->whereIn('id', $accessibleSectionIds ?: [-1]));
             })
             ->first();
@@ -221,7 +221,7 @@ trait HasAttendanceClassFilters
                 fn ($gradeQuery) => $gradeQuery->where('department_id', $this->department),
             ));
 
-        if ($user && ! $teacherScope->bypassesScope($user)) {
+        if ($user && ! $teacherScope->bypassesAttendanceScope($user)) {
             $sectionsQuery->whereIn('id', $accessibleSectionIds ?: [-1]);
         }
 
@@ -229,7 +229,7 @@ trait HasAttendanceClassFilters
 
         $grades = GradeLevel::query()
             ->when($this->department, fn ($query) => $query->where('department_id', $this->department))
-            ->when($user && ! $teacherScope->bypassesScope($user), function ($query) use ($accessibleSectionIds) {
+            ->when($user && ! $teacherScope->bypassesAttendanceScope($user), function ($query) use ($accessibleSectionIds) {
                 $query->whereHas('sections', fn ($sectionQuery) => $sectionQuery->whereIn('id', $accessibleSectionIds ?: [-1]));
             })
             ->ordered()
@@ -238,7 +238,7 @@ trait HasAttendanceClassFilters
         $departments = Department::query()
             ->active()
             ->ordered()
-            ->when($user && ! $teacherScope->bypassesScope($user), function ($query) use ($accessibleSectionIds) {
+            ->when($user && ! $teacherScope->bypassesAttendanceScope($user), function ($query) use ($accessibleSectionIds) {
                 $query->whereHas('gradeLevels.sections', fn ($sectionQuery) => $sectionQuery->whereIn('id', $accessibleSectionIds ?: [-1]));
             })
             ->get();

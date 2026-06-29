@@ -53,4 +53,67 @@ if (-not (Test-Path (Join-Path $targetDir 'php.exe'))) {
     Write-Error 'php.exe was not copied into bin/php.'
 }
 
+Write-Host "Trimming portable PHP runtime..."
+
+$removeFiles = @(
+    'php-cgi.exe',
+    'phpdbg.exe',
+    'deplister.exe',
+    'php-win.exe',
+    'php.ini-development',
+    'php.ini-production',
+    'readme-redist-bins.txt',
+    'snapshot.txt',
+    'phpspec-dist.ini'
+)
+
+foreach ($file in $removeFiles) {
+    $path = Join-Path $targetDir $file
+    if (Test-Path $path) {
+        Remove-Item $path -Force
+    }
+}
+
+$keepExtensions = @(
+    'php_curl.dll',
+    'php_exif.dll',
+    'php_fileinfo.dll',
+    'php_gd.dll',
+    'php_intl.dll',
+    'php_mbstring.dll',
+    'php_mysqli.dll',
+    'php_openssl.dll',
+    'php_pdo_mysql.dll',
+    'php_pdo_sqlite.dll',
+    'php_sodium.dll',
+    'php_sqlite3.dll',
+    'php_zip.dll'
+)
+
+$extDir = Join-Path $targetDir 'ext'
+if (Test-Path $extDir) {
+    Get-ChildItem $extDir -Filter '*.dll' | Where-Object { $keepExtensions -notcontains $_.Name } | Remove-Item -Force
+}
+
+$phpIni = Join-Path $targetDir 'php.ini'
+if (-not (Test-Path $phpIni)) {
+    @(
+        "[PHP]",
+        "extension_dir = `"$($extDir -replace '\\', '/')`"",
+        "extension=curl",
+        "extension=exif",
+        "extension=fileinfo",
+        "extension=gd",
+        "extension=intl",
+        "extension=mbstring",
+        "extension=mysqli",
+        "extension=openssl",
+        "extension=pdo_mysql",
+        "extension=pdo_sqlite",
+        "extension=sodium",
+        "extension=sqlite3",
+        "extension=zip"
+    ) | Set-Content -Path $phpIni -Encoding ASCII
+}
+
 Write-Host "Done. Portable PHP is ready for electron-builder."

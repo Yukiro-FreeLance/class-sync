@@ -5,10 +5,12 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "prepare:laravel": "powershell -ExecutionPolicy Bypass -File scripts/prepare-laravel.ps1",
     "prepare:php": "powershell -ExecutionPolicy Bypass -File scripts/prepare-php.ps1",
+    "clean:dist": "powershell -ExecutionPolicy Bypass -File scripts/clean-dist.ps1",
     "build": "npx electron-builder",
     "build:win": "npx electron-builder --win",
-    "build:desktop": "npm run prepare:php && npm run build:win"
+    "build:desktop": "npm run prepare:laravel && npm run prepare:php && npm run clean:dist && npm run build:win"
   },
   "author": "Class Sync",
   "license": "MIT",
@@ -19,9 +21,15 @@
   "build": {
     "appId": "com.classsync.app",
     "productName": "Class Sync",
+    "compression": "maximum",
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "main.js",
+      "php-resolver.js",
+      "assets/**"
+    ],
     "win": {
       "target": [
         "nsis"
@@ -42,7 +50,24 @@
           "**/*",
           "!electron/**",
           "!node_modules/**",
-          "!.git/**"
+          "!.git/**",
+          "!.cursor/**",
+          "!.env",
+          "!.phpunit.result.cache",
+          "!.phpunit.cache",
+          "!docker/**",
+          "!undefined/**",
+          "!tests/**",
+          "!database/database.sqlite",
+          "!database/testing.sqlite",
+          "!storage/app/packages/**",
+          "!storage/app/private/**",
+          "!storage/app/public/**",
+          "!storage/logs/**",
+          "!storage/framework/cache/data/**",
+          "!storage/framework/sessions/**",
+          "!storage/framework/views/**",
+          "!storage/framework/testing/**"
         ]
       }
     ]

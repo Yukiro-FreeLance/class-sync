@@ -60,6 +60,7 @@ class UserAccessSettingsTest extends TestCase
         $scope = app(TeacherScopeService::class);
 
         $this->assertFalse($scope->bypassesScope($this->admin));
+        $this->assertTrue($scope->bypassesAttendanceScope($this->admin));
         $this->assertContains($section->id, $scope->accessibleSectionIds($this->admin));
     }
 

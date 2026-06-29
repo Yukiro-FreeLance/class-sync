@@ -24,17 +24,17 @@ class TeacherScopeService
             return false;
         }
 
-        return $user->hasAnyRole([
-            UserRole::superAdminValue(),
-            UserRole::Administrator->value,
-            UserRole::Principal->value,
-            UserRole::Registrar->value,
-        ]);
+        return $this->hasAttendanceBypassRole($user);
+    }
+
+    public function bypassesAttendanceScope(User $user): bool
+    {
+        return $this->hasAttendanceBypassRole($user);
     }
 
     public function isAttendanceScoped(User $user): bool
     {
-        return $user->canActAsTeacher() && ! $this->bypassesScope($user);
+        return $user->canActAsTeacher() && ! $this->bypassesAttendanceScope($user);
     }
 
     /**
@@ -68,7 +68,7 @@ class TeacherScopeService
      */
     public function accessibleScheduleSectionIds(User $user): array
     {
-        if ($this->bypassesScope($user)) {
+        if ($this->bypassesAttendanceScope($user)) {
             return Section::query()->pluck('id')->all();
         }
 
@@ -91,7 +91,7 @@ class TeacherScopeService
     {
         $schedules = $this->scheduleResolver->forSectionOnDate($sectionId, $date);
 
-        if ($this->bypassesScope($user)) {
+        if ($this->bypassesAttendanceScope($user)) {
             return $schedules;
         }
 
@@ -102,7 +102,7 @@ class TeacherScopeService
 
     public function canAccessSection(User $user, int $sectionId): bool
     {
-        if ($this->bypassesScope($user)) {
+        if ($this->bypassesAttendanceScope($user)) {
             return true;
         }
 
@@ -111,7 +111,7 @@ class TeacherScopeService
 
     public function canAccessClassSchedule(User $user, int $classScheduleId, int $sectionId, string $date): bool
     {
-        if ($this->bypassesScope($user)) {
+        if ($this->bypassesAttendanceScope($user)) {
             return true;
         }
 
@@ -157,13 +157,23 @@ class TeacherScopeService
 
     public function scopeAttendanceSections(Builder $query, User $user): Builder
     {
-        if ($this->bypassesScope($user)) {
+        if ($this->bypassesAttendanceScope($user)) {
             return $query;
         }
 
         $sectionIds = $this->accessibleScheduleSectionIds($user);
 
         return $query->whereIn('id', $sectionIds ?: [-1]);
+    }
+
+    protected function hasAttendanceBypassRole(User $user): bool
+    {
+        return $user->hasAnyRole([
+            UserRole::superAdminValue(),
+            UserRole::Administrator->value,
+            UserRole::Principal->value,
+            UserRole::Registrar->value,
+        ]);
     }
 
     public function studentsQuery(User $teacher): Builder

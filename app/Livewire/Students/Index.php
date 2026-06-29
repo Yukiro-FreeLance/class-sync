@@ -39,6 +39,15 @@ class Index extends Component
     #[Url]
     public bool $showArchived = false;
 
+    #[Url]
+    public string $sort = 'name';
+
+    #[Url]
+    public string $direction = 'asc';
+
+    #[Url]
+    public int $perPage = 15;
+
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -70,9 +79,33 @@ class Index extends Component
         $this->resetPage();
     }
 
+    public function updatingPerPage(): void
+    {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        $allowed = ['name', 'student_number', 'grade', 'status'];
+
+        if (! in_array($field, $allowed, true)) {
+            return;
+        }
+
+        if ($this->sort === $field) {
+            $this->direction = $this->direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sort = $field;
+            $this->direction = 'asc';
+        }
+
+        $this->resetPage();
+    }
+
     public function clearFilters(): void
     {
-        $this->reset(['search', 'grade', 'department', 'section', 'status', 'showArchived']);
+        $this->reset(['search', 'grade', 'department', 'section', 'status', 'showArchived', 'sort', 'direction']);
+        $this->perPage = 15;
         $this->resetPage();
     }
 
@@ -166,12 +199,15 @@ class Index extends Component
             ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
             ->when($this->section, fn ($q) => $q->where('section_id', $this->section))
             ->when($this->status, fn ($q) => $q->where('status', $this->status))
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->paginate(15);
+            ->tap(fn ($query) => $this->applyStudentSort($query))
+            ->paginate($this->normalizedPerPage());
 
         return [
             'students' => $students,
+            'sort' => $this->sort,
+            'direction' => $this->direction,
+            'perPage' => $this->normalizedPerPage(),
+            'perPageOptions' => [10, 15, 25, 50],
             'stats' => [
                 'active' => Student::query()->count(),
                 'archived' => Student::onlyTrashed()->count(),
@@ -196,5 +232,30 @@ class Index extends Component
     public function render()
     {
         return view('livewire.students.index', $this->viewData());
+    }
+
+    protected function normalizedPerPage(): int
+    {
+        return in_array($this->perPage, [10, 15, 25, 50], true) ? $this->perPage : 15;
+    }
+
+    protected function applyStudentSort($query): void
+    {
+        $direction = $this->direction === 'desc' ? 'desc' : 'asc';
+
+        match ($this->sort) {
+            'student_number' => $query->orderBy('student_number', $direction),
+            'grade' => $query
+                ->orderBy(
+                    GradeLevel::select('sort_order')
+                        ->whereColumn('grade_levels.id', 'students.grade_level_id')
+                        ->limit(1),
+                    $direction,
+                )
+                ->orderBy('last_name')
+                ->orderBy('first_name'),
+            'status' => $query->orderBy('status', $direction)->orderBy('last_name')->orderBy('first_name'),
+            default => $query->orderBy('last_name', $direction)->orderBy('first_name', $direction),
+        };
     }
 }

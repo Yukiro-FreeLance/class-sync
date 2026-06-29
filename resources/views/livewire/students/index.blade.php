@@ -155,6 +155,14 @@
                     Viewing archived students only
                 </span>
             @endif
+            <div class="ml-auto flex items-center gap-2">
+                <label for="perPage" class="text-xs text-slate-500 whitespace-nowrap">Rows</label>
+                <select wire:model.live="perPage" id="perPage" class="select-field w-20 py-1.5 text-sm">
+                    @foreach ($perPageOptions as $option)
+                        <option value="{{ $option }}">{{ $option }}</option>
+                    @endforeach
+                </select>
+            </div>
         </div>
     </div>
 
@@ -163,9 +171,9 @@
             <table class="w-full data-table">
                 <thead>
                     <tr>
-                        <th>Student</th>
-                        <th>Grade / Section</th>
-                        <th>Status</th>
+                        <x-sortable-th field="name" label="Student" :sort="$sort" :direction="$direction" />
+                        <x-sortable-th field="grade" label="Grade / Section" :sort="$sort" :direction="$direction" />
+                        <x-sortable-th field="status" label="Status" :sort="$sort" :direction="$direction" />
                         <th class="text-right w-32">Actions</th>
                     </tr>
                 </thead>
@@ -226,9 +234,14 @@
                 </tbody>
             </table>
         </div>
-        @if ($students->hasPages())
-            <div class="px-5 py-4 border-t border-surface-border dark:border-slate-800">
-                {{ $students->links() }}
+        @if ($students->hasPages() || $students->total() > 0)
+            <div class="px-5 py-4 border-t border-surface-border dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p class="text-xs text-slate-500">
+                    Showing {{ $students->firstItem() ?? 0 }}–{{ $students->lastItem() ?? 0 }} of {{ $students->total() }}
+                </p>
+                @if ($students->hasPages())
+                    {{ $students->links() }}
+                @endif
             </div>
         @endif
     </div>

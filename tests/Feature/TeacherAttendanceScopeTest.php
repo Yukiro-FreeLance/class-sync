@@ -179,4 +179,25 @@ class TeacherAttendanceScopeTest extends TestCase
             ->assertSee('Mathematics')
             ->assertDontSee('Science');
     }
+
+    public function test_admin_acting_as_teacher_can_access_all_class_schedules_for_attendance(): void
+    {
+        $admin = User::factory()->create(['is_active' => true, 'acts_as_teacher' => true]);
+        $admin->assignRole(UserRole::Administrator->value);
+        $admin->assignRole(UserRole::Teacher->value);
+
+        $scope = app(TeacherScopeService::class);
+
+        $this->assertFalse($scope->bypassesScope($admin));
+        $this->assertTrue($scope->bypassesAttendanceScope($admin));
+        $this->assertFalse($scope->isAttendanceScoped($admin));
+
+        $schedules = $scope->accessibleClassSchedules(
+            $admin,
+            $this->section->id,
+            $this->date,
+        );
+
+        $this->assertCount(2, $schedules);
+    }
 }

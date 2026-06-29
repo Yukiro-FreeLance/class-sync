@@ -8,11 +8,19 @@
         </x-slot>
     </x-page-header>
 
-    @if (($isTeacherScoped ?? false) && ($sections->isEmpty() || ($section && $classSchedules->isEmpty())))
+    @if (($isTeacherScoped ?? false) && $sections->isEmpty())
         <div class="panel mb-6 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
             <p class="text-sm text-amber-900 dark:text-amber-100">
-                No class schedules are assigned to you for this date. Contact the registrar if you believe this is an
-                error.
+                No class schedules are assigned to you. Ask the registrar to assign you as the teacher on the class
+                schedule, or open <a href="{{ route('settings.academic.schedules') }}" wire:navigate class="font-medium underline">Class Schedules</a>
+                to verify your assignments.
+            </p>
+        </div>
+    @elseif (($isTeacherScoped ?? false) && $section && $classSchedules->isEmpty())
+        <div class="panel mb-6 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+            <p class="text-sm text-amber-900 dark:text-amber-100">
+                No classes are scheduled for {{ $weekdayLabel }} on this date in the selected section. Pick another date
+                or check the schedule in Academic Settings.
             </p>
         </div>
     @endif
@@ -213,115 +221,115 @@
                         </div>
                     </div>
 
-                    {{-- Column headers (desktop) --}}
-                    <div
-                        class="hidden lg:grid lg:grid-cols-[minmax(180px,1fr)_minmax(280px,320px)_auto] gap-4 px-5 py-2 bg-white dark:bg-slate-900 border-b border-surface-border dark:border-slate-800">
-                        <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Student</span>
-                        <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status</span>
-                        <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Notes</span>
-                    </div>
-
-                    <div class="max-h-[calc(100vh-13rem)] overflow-y-auto bg-white dark:bg-slate-900">
-                        @forelse ($students as $index => $student)
-                            @php $entry = $entries[$student->id] ?? null; @endphp
-                            @if ($entry)
-                                @php
-                                    $activeRemark = $remarks->firstWhere('id', $entry['remark_id']);
-                                    $initials = collect(explode(' ', $student->full_name))
-                                        ->take(2)
-                                        ->map(fn($w) => mb_substr($w, 0, 1))
-                                        ->join('');
-                                    $hasNotes = ($entry['remarks'] ?? '') !== '' || ($entry['went_out'] ?? false);
-                                @endphp
-                                <div wire:key="student-{{ $student->id }}" x-data="{ open: {{ $hasNotes ? 'true' : 'false' }} }"
-                                    class="attendance-student-row">
-                                    <div
-                                        class="grid lg:grid-cols-[minmax(180px,1fr)_minmax(280px,320px)_auto] gap-3 lg:gap-4 lg:items-center">
-                                        {{-- Student info --}}
-                                        <div class="flex items-center gap-3 min-w-0">
-                                            <span
-                                                class="hidden sm:flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium text-slate-400">
-                                                {{ $index + 1 }}
-                                            </span>
-                                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white shadow-sm"
-                                                style="background-color: {{ $activeRemark?->color ?? '#64748b' }}">
-                                                {{ strtoupper($initials) }}
-                                            </div>
-                                            <div class="min-w-0">
-                                                <p class="text-sm font-medium text-slate-900 dark:text-white truncate">
-                                                    {{ $student->full_name }}</p>
-                                                <p class="text-[11px] text-slate-500 font-mono">
-                                                    {{ $student->student_number }}</p>
-                                            </div>
-                                        </div>
-
-                                        {{-- Status buttons --}}
-                                        <div class="grid grid-cols-5 gap-1">
-                                            @foreach ($remarks as $remark)
-                                                <button type="button"
-                                                    wire:click="setStudentRemark({{ $student->id }}, {{ $remark->id }})"
-                                                    title="{{ $remark->label }}" @class([
-                                                        'attendance-status-btn',
-                                                        'attendance-status-btn-active' => (int) $entry['remark_id'] === $remark->id,
-                                                        'attendance-status-btn-inactive' =>
-                                                            (int) $entry['remark_id'] !== $remark->id,
-                                                    ])
-                                                    @if ((int) $entry['remark_id'] === $remark->id) style="background-color: {{ $remark->color }}" @endif>
-                                                    <span
-                                                        class="hidden sm:inline truncate">{{ $remark->label }}</span>
-                                                    <span
-                                                        class="sm:hidden">{{ mb_substr($remark->label, 0, 1) }}</span>
+                    <div class="overflow-x-auto max-h-[calc(100vh-13rem)]">
+                        <table class="w-full data-table text-sm">
+                            <thead class="sticky top-0 z-10">
+                                <tr>
+                                    <th class="w-12 text-center">#</th>
+                                    <th>Student</th>
+                                    <th class="min-w-[280px]">Status</th>
+                                    <th class="w-24">Notes</th>
+                                </tr>
+                            </thead>
+                            @forelse ($students as $index => $student)
+                                    @php $entry = $entries[$student->id] ?? null; @endphp
+                                    @if ($entry)
+                                        @php
+                                            $activeRemark = $remarks->firstWhere('id', $entry['remark_id']);
+                                            $initials = collect(explode(' ', $student->full_name))
+                                                ->take(2)
+                                                ->map(fn ($w) => mb_substr($w, 0, 1))
+                                                ->join('');
+                                            $hasNotes = ($entry['remarks'] ?? '') !== '' || ($entry['went_out'] ?? false);
+                                        @endphp
+                                        <tbody wire:key="student-{{ $student->id }}" x-data="{ open: @js($hasNotes) }">
+                                            <tr class="align-middle">
+                                            <td class="text-center text-slate-500 font-medium">{{ $index + 1 }}</td>
+                                            <td>
+                                                <div class="flex items-center gap-3 min-w-0">
+                                                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white shadow-sm"
+                                                        style="background-color: {{ $activeRemark?->color ?? '#64748b' }}">
+                                                        {{ strtoupper($initials) }}
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <p class="font-medium text-slate-900 dark:text-white truncate">
+                                                            {{ $student->full_name }}
+                                                        </p>
+                                                        <p class="font-mono text-[11px] text-slate-500">
+                                                            {{ $student->student_number }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="grid grid-cols-5 gap-1 min-w-[240px]">
+                                                    @foreach ($remarks as $remark)
+                                                        <button type="button"
+                                                            wire:click="setStudentRemark({{ $student->id }}, {{ $remark->id }})"
+                                                            title="{{ $remark->label }}" @class([
+                                                                'attendance-status-btn',
+                                                                'attendance-status-btn-active' => (int) $entry['remark_id'] === $remark->id,
+                                                                'attendance-status-btn-inactive' => (int) $entry['remark_id'] !== $remark->id,
+                                                            ])
+                                                            @if ((int) $entry['remark_id'] === $remark->id) style="background-color: {{ $remark->color }}" @endif>
+                                                            <span class="hidden sm:inline truncate">{{ $remark->label }}</span>
+                                                            <span class="sm:hidden">{{ mb_substr($remark->label, 0, 1) }}</span>
+                                                        </button>
+                                                    @endforeach
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <button type="button" @click="open = !open" @class([
+                                                    'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition',
+                                                    'text-green-700 bg-brand-50 dark:bg-brand-900/20' => $hasNotes,
+                                                    'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800' => ! $hasNotes,
+                                                ])>
+                                                    <svg class="h-3.5 w-3.5 transition-transform"
+                                                        :class="open && 'rotate-180'" fill="none" stroke="currentColor"
+                                                        viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                                            stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                    Notes
                                                 </button>
-                                            @endforeach
-                                        </div>
-
-                                        {{-- Notes toggle --}}
-                                        <div class="flex items-center justify-end lg:justify-start">
-                                            <button type="button" @click="open = !open" @class([
-                                                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition',
-                                                'text-green-700 bg-brand-50 dark:bg-brand-900/20' => $hasNotes,
-                                                'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800' => !$hasNotes,
-                                            ])>
-                                                <svg class="h-3.5 w-3.5 transition-transform"
-                                                    :class="open && 'rotate-180'" fill="none" stroke="currentColor"
-                                                    viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2" d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                                Notes
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div x-show="open" x-transition.opacity.duration.200ms
-                                        class="mt-3 pl-0 sm:pl-12 lg:pl-[calc(2.25rem+0.75rem)]">
-                                        <div
-                                            class="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-surface-border dark:border-slate-800 p-3">
-                                            <label
-                                                class="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 shrink-0 cursor-pointer">
-                                                <input type="checkbox"
-                                                    wire:model.live="entries.{{ $student->id }}.went_out"
-                                                    class="rounded text-green-700">
-                                                Left during class
-                                            </label>
-                                            <input type="text"
-                                                wire:model.blur="entries.{{ $student->id }}.remarks"
-                                                placeholder="Add a note…"
-                                                class="input-field text-xs py-1.5 flex-1 min-w-0">
-                                        </div>
-                                    </div>
-                                </div>
-                            @endif
-                        @empty
-                            <div class="px-5 py-16 text-center">
-                                <p class="text-sm text-slate-500">No students match your filters.</p>
-                                @if ($studentSearch || $statusFilter)
-                                    <button type="button"
-                                        wire:click="$set('studentSearch', ''); $set('statusFilter', '')"
-                                        class="mt-2 text-xs text-green-700 hover:underline">Clear filters</button>
-                                @endif
-                            </div>
-                        @endforelse
+                                            </td>
+                                        </tr>
+                                        <tr x-show="open" x-cloak class="bg-slate-50/80 dark:bg-slate-800/30">
+                                            <td></td>
+                                            <td colspan="3" class="!py-3">
+                                                <div
+                                                    class="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl bg-white dark:bg-slate-900 border border-surface-border dark:border-slate-800 p-3">
+                                                    <label
+                                                        class="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 shrink-0 cursor-pointer">
+                                                        <input type="checkbox"
+                                                            wire:model.live="entries.{{ $student->id }}.went_out"
+                                                            class="rounded text-green-700">
+                                                        Left during class
+                                                    </label>
+                                                    <input type="text"
+                                                        wire:model.blur="entries.{{ $student->id }}.remarks"
+                                                        placeholder="Add a note…"
+                                                        class="input-field text-xs py-1.5 flex-1 min-w-0">
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        </tbody>
+                                    @endif
+                                @empty
+                                    <tbody>
+                                    <tr>
+                                        <td colspan="4" class="text-center py-16">
+                                            <p class="text-sm text-slate-500">No students match your filters.</p>
+                                            @if ($studentSearch || $statusFilter)
+                                                <button type="button"
+                                                    wire:click="$set('studentSearch', ''); $set('statusFilter', '')"
+                                                    class="mt-2 text-xs text-green-700 hover:underline">Clear filters</button>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                @endforelse
+                        </table>
                     </div>
 
                     <div

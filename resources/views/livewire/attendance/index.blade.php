@@ -25,11 +25,17 @@
         ])>Class Session</button>
     </div>
 
-    @if (($isTeacherScoped ?? false) && ($sections->isEmpty() || ($section && $classSchedules->isEmpty())))
+    @if (($isTeacherScoped ?? false) && $sections->isEmpty())
         <div class="panel mb-6 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
             <p class="text-sm text-amber-900 dark:text-amber-100">
-                No class schedules are assigned to you for this date. Contact the registrar if you believe this is an
-                error.
+                No class schedules are assigned to you. Ask the registrar to assign you as the teacher on the class
+                schedule.
+            </p>
+        </div>
+    @elseif (($isTeacherScoped ?? false) && $section && $classSchedules->isEmpty())
+        <div class="panel mb-6 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+            <p class="text-sm text-amber-900 dark:text-amber-100">
+                No classes are scheduled for {{ $weekdayLabel }} on this date in the selected section.
             </p>
         </div>
     @endif

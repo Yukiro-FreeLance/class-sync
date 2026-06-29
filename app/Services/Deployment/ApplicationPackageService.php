@@ -32,7 +32,213 @@ class ApplicationPackageService
             $this->check('assets', 'Frontend build', is_dir(public_path('build')), 'Run npm run build or use Build Assets below.'),
             $this->check('node', 'Node.js', $node !== null, $node ? "Found at {$node}" : 'Set NODE_BINARY in .env if builds fail from the web UI.'),
             $this->check('npm', 'NPM', $npm !== null, $npm ? "Found at {$npm}" : 'Set NPM_BINARY in .env if builds fail from the web UI.'),
+            $this->check(
+                'desktop_icon',
+                'Desktop app icon',
+                $this->resolveDesktopIconRelativePath() !== null,
+                $this->resolveDesktopIconRelativePath() !== null
+                    ? 'Custom icon will be used in the Windows installer.'
+                    : 'Upload a PNG or ICO icon (256x256 or larger) before building the installer.',
+            ),
         ];
+    }
+
+    /**
+     * @return array{filename: string, size: int, updated_at: string, preview_url: string}|null
+     */
+    public function desktopIconInfo(): ?array
+    {
+        $path = $this->resolveDesktopIconAbsolutePath();
+
+        if ($path === null) {
+            return null;
+        }
+
+        return [
+            'filename' => basename($path),
+            'size' => File::size($path),
+            'updated_at' => date('c', File::lastModified($path)),
+            'preview_url' => route('settings.application-package.icon'),
+        ];
+    }
+
+    /**
+     * @param  \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|\Illuminate\Http\UploadedFile  $file
+     * @return array{filename: string, size: int, updated_at: string, preview_url: string}
+     */
+    public function storeDesktopIcon($file): array
+    {
+        $this->ensureDesktopAssetsDirectory();
+
+        $extension = strtolower($file->getClientOriginalExtension());
+
+        if (! in_array($extension, ['png', 'ico', 'jpg', 'jpeg'], true)) {
+            throw new RuntimeException('Desktop icon must be a PNG, JPG, or ICO file.');
+        }
+
+        $targetName = $extension === 'ico' ? 'icon.ico' : 'icon.png';
+        $targetPath = $this->desktopAssetsDirectory().DIRECTORY_SEPARATOR.$targetName;
+
+        File::put($targetPath, file_get_contents($file->getRealPath()));
+
+        if ($targetName === 'icon.png') {
+            $this->assertMinimumIconDimensions($targetPath);
+        }
+
+        $this->removeUnusedDesktopIconVariants($targetName);
+        $this->syncElectronBuilderIconConfig();
+
+        return $this->desktopIconInfo() ?? throw new RuntimeException('Unable to save desktop icon.');
+    }
+
+    /**
+     * @return array{filename: string, size: int, updated_at: string, preview_url: string}
+     */
+    public function copySchoolLogoAsDesktopIcon(string $sourcePath): array
+    {
+        if (! is_file($sourcePath)) {
+            throw new RuntimeException('Upload a school logo in General Settings first.');
+        }
+
+        $extension = strtolower(pathinfo($sourcePath, PATHINFO_EXTENSION));
+
+        if ($extension === 'svg') {
+            throw new RuntimeException('SVG logos cannot be used as desktop icons. Upload a PNG or ICO file instead.');
+        }
+
+        $this->ensureDesktopAssetsDirectory();
+        $targetPath = $this->desktopAssetsDirectory().DIRECTORY_SEPARATOR.'icon.png';
+
+        if (in_array($extension, ['jpg', 'jpeg'], true)) {
+            if (! function_exists('imagecreatefromjpeg')) {
+                throw new RuntimeException('PHP GD extension is required to convert the school logo into a desktop icon.');
+            }
+
+            $image = imagecreatefromjpeg($sourcePath);
+
+            if ($image === false) {
+                throw new RuntimeException('Unable to read the school logo file.');
+            }
+
+            imagepng($image, $targetPath);
+            imagedestroy($image);
+        } else {
+            File::copy($sourcePath, $targetPath);
+        }
+
+        $this->assertMinimumIconDimensions($targetPath);
+        $this->removeUnusedDesktopIconVariants('icon.png');
+        $this->syncElectronBuilderIconConfig();
+
+        return $this->desktopIconInfo() ?? throw new RuntimeException('Unable to copy school logo as desktop icon.');
+    }
+
+    public function removeDesktopIcon(): void
+    {
+        foreach (['icon.png', 'icon.ico'] as $filename) {
+            $path = $this->desktopAssetsDirectory().DIRECTORY_SEPARATOR.$filename;
+
+            if (File::exists($path)) {
+                File::delete($path);
+            }
+        }
+
+        $this->syncElectronBuilderIconConfig();
+    }
+
+    public function resolveDesktopIconAbsolutePath(): ?string
+    {
+        foreach (['icon.ico', 'icon.png'] as $filename) {
+            $path = $this->desktopAssetsDirectory().DIRECTORY_SEPARATOR.$filename;
+
+            if (File::exists($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    public function resolveDesktopIconRelativePath(): ?string
+    {
+        if (File::exists($this->desktopAssetsDirectory().DIRECTORY_SEPARATOR.'icon.ico')) {
+            return 'assets/icon.ico';
+        }
+
+        if (File::exists($this->desktopAssetsDirectory().DIRECTORY_SEPARATOR.'icon.png')) {
+            return 'assets/icon.png';
+        }
+
+        return null;
+    }
+
+    protected function desktopAssetsDirectory(): string
+    {
+        return base_path('electron'.DIRECTORY_SEPARATOR.'assets');
+    }
+
+    protected function ensureDesktopAssetsDirectory(): void
+    {
+        if (! File::isDirectory($this->desktopAssetsDirectory())) {
+            File::makeDirectory($this->desktopAssetsDirectory(), 0755, true);
+        }
+    }
+
+    protected function removeUnusedDesktopIconVariants(string $activeFilename): void
+    {
+        foreach (['icon.png', 'icon.ico'] as $filename) {
+            if ($filename === $activeFilename) {
+                continue;
+            }
+
+            $path = $this->desktopAssetsDirectory().DIRECTORY_SEPARATOR.$filename;
+
+            if (File::exists($path)) {
+                File::delete($path);
+            }
+        }
+    }
+
+    protected function assertMinimumIconDimensions(string $path): void
+    {
+        $dimensions = @getimagesize($path);
+
+        if ($dimensions === false) {
+            File::delete($path);
+
+            throw new RuntimeException('The uploaded file is not a valid image.');
+        }
+
+        if ($dimensions[0] < 256 || $dimensions[1] < 256) {
+            File::delete($path);
+
+            throw new RuntimeException('Desktop icon must be at least 256x256 pixels.');
+        }
+    }
+
+    protected function syncElectronBuilderIconConfig(): void
+    {
+        $packageJsonPath = base_path('electron'.DIRECTORY_SEPARATOR.'package.json');
+
+        if (! File::exists($packageJsonPath)) {
+            return;
+        }
+
+        /** @var array<string, mixed> $package */
+        $package = json_decode(File::get($packageJsonPath), true, 512, JSON_THROW_ON_ERROR);
+
+        $icon = $this->resolveDesktopIconRelativePath();
+
+        if ($icon !== null) {
+            $package['build']['win']['icon'] = $icon;
+        } else {
+            $package['build']['win']['icon'] = 'assets/icon.png';
+        }
+
+        File::put(
+            $packageJsonPath,
+            json_encode($package, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
+        );
     }
 
     public function canPackage(): bool
@@ -218,7 +424,7 @@ class ApplicationPackageService
 
         $build = $this->runNodeCommand(
             $electronPath,
-            $this->quoteExecutable($npm).' run build:win',
+            $this->quoteExecutable($npm).' run build:desktop',
             $buildTimeout,
         );
 
@@ -231,12 +437,12 @@ class ApplicationPackageService
             ];
         }
 
-        $installer = $this->findLatestDesktopArtifact($electronPath.DIRECTORY_SEPARATOR.'dist');
+        $installer = $this->findLatestDesktopInstaller();
 
         if ($installer === null) {
             return [
                 'success' => false,
-                'output' => $output."\n\nNo installer artifact was found in electron/dist.",
+                'output' => $output."\n\nNo installer artifact was found in electron/dist or electron/dist-new.",
             ];
         }
 
@@ -253,20 +459,89 @@ class ApplicationPackageService
     }
 
     /**
-     * @return array<int, array{filename: string, path: string, size: int, created_at: string, type: string}>
+     * @return array<int, array{filename: string, path: string, size: int, created_at: string, type: string, source: string}>
      */
     public function list(): array
     {
         $this->ensurePackageDirectory();
 
-        return collect(File::files($this->packagePath))
-            ->sortByDesc(fn ($file) => $file->getMTime())
+        $packages = collect(File::files($this->packagePath))
             ->map(fn ($file) => array_merge(
                 $this->packageMeta($file->getFilename(), $file->getPathname()),
-                ['type' => $this->packageType($file->getFilename())],
-            ))
+                [
+                    'type' => $this->packageType($file->getFilename()),
+                    'source' => 'storage',
+                ],
+            ));
+
+        $knownFilenames = $packages->pluck('filename');
+
+        foreach ($this->findDesktopInstallers() as $installerPath) {
+            $filename = basename($installerPath);
+
+            if ($knownFilenames->contains($filename)) {
+                continue;
+            }
+
+            $packages->push(array_merge(
+                $this->packageMeta($filename, $installerPath),
+                [
+                    'type' => 'desktop',
+                    'source' => 'electron',
+                ],
+            ));
+        }
+
+        return $packages
+            ->sortByDesc(fn (array $package) => strtotime($package['created_at']))
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array{filename: string, path: string, size: int, created_at: string, type: string, source: string}|null
+     */
+    public function latestDesktopInstaller(): ?array
+    {
+        $installer = $this->findLatestDesktopInstaller();
+
+        if ($installer === null) {
+            return null;
+        }
+
+        $filename = basename($installer);
+        $storedPath = $this->resolvePackagePath($filename);
+
+        if (File::exists($storedPath)) {
+            return array_merge(
+                $this->packageMeta($filename, $storedPath),
+                ['type' => 'desktop', 'source' => 'storage'],
+            );
+        }
+
+        return array_merge(
+            $this->packageMeta($filename, $installer),
+            ['type' => 'desktop', 'source' => 'electron'],
+        );
+    }
+
+    /**
+     * Copy a desktop installer into storage/app/packages for download hosting.
+     *
+     * @return array{filename: string, path: string, size: int, created_at: string}
+     */
+    public function importDesktopInstaller(string $filename): array
+    {
+        $this->ensurePackageDirectory();
+
+        $sourcePath = $this->resolveDownloadPath($filename);
+        $targetPath = $this->resolvePackagePath(basename($filename));
+
+        if (! File::exists($targetPath) || File::lastModified($sourcePath) > File::lastModified($targetPath)) {
+            File::copy($sourcePath, $targetPath);
+        }
+
+        return $this->packageMeta(basename($filename), $targetPath);
     }
 
     public function delete(string $filename): bool
@@ -282,13 +557,43 @@ class ApplicationPackageService
 
     public function downloadResponse(string $filename): BinaryFileResponse
     {
-        $path = $this->resolvePackagePath($filename);
+        $path = $this->resolveDownloadPath($filename);
 
-        if (! File::exists($path)) {
+        return response()->download($path, basename($filename));
+    }
+
+    protected function resolveDownloadPath(string $filename): string
+    {
+        $basename = basename($filename);
+
+        if ($basename !== $filename) {
             abort(404);
         }
 
-        return response()->download($path, $filename);
+        if (! $this->isDownloadableFilename($basename)) {
+            abort(404);
+        }
+
+        $storedPath = $this->resolvePackagePath($basename);
+
+        if (File::exists($storedPath)) {
+            return $storedPath;
+        }
+
+        foreach ($this->findDesktopInstallers() as $installerPath) {
+            if (basename($installerPath) === $basename) {
+                return $installerPath;
+            }
+        }
+
+        abort(404);
+    }
+
+    protected function isDownloadableFilename(string $filename): bool
+    {
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['zip', 'exe', 'msi'], true);
     }
 
     /**
@@ -451,18 +756,74 @@ TXT;
         return 'artifact';
     }
 
-    protected function findLatestDesktopArtifact(string $directory): ?string
+    protected function findLatestDesktopInstaller(): ?string
+    {
+        return collect($this->findDesktopInstallers())
+            ->sortByDesc(fn (string $path) => filemtime($path))
+            ->first();
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function findDesktopInstallers(): array
+    {
+        $installers = [];
+
+        foreach ($this->desktopOutputDirectories() as $directory) {
+            foreach ($this->findDesktopInstallerFilesInDirectory($directory) as $installer) {
+                $installers[] = $installer;
+            }
+        }
+
+        return array_values(array_unique($installers));
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function desktopOutputDirectories(): array
+    {
+        $electronPath = base_path('electron');
+
+        return array_values(array_filter([
+            $electronPath.DIRECTORY_SEPARATOR.'dist',
+            $electronPath.DIRECTORY_SEPARATOR.'dist-new',
+        ], fn (string $directory) => is_dir($directory)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function findDesktopInstallerFilesInDirectory(string $directory): array
     {
         if (! is_dir($directory)) {
+            return [];
+        }
+
+        return collect(File::files($directory))
+            ->filter(function ($file) {
+                $extension = strtolower($file->getExtension());
+
+                return in_array($extension, ['exe', 'msi'], true)
+                    && str_contains(strtolower($file->getFilename()), 'setup');
+            })
+            ->map(fn ($file) => $file->getPathname())
+            ->values()
+            ->all();
+    }
+
+    protected function findLatestDesktopArtifact(string $directory): ?string
+    {
+        $installers = $this->findDesktopInstallerFilesInDirectory($directory);
+
+        if ($installers === []) {
             return null;
         }
 
-        $candidates = collect(File::allFiles($directory))
-            ->filter(fn ($file) => in_array(strtolower($file->getExtension()), ['exe', 'msi'], true))
-            ->sortByDesc(fn ($file) => $file->getMTime())
-            ->values();
-
-        return $candidates->first()?->getPathname();
+        return collect($installers)
+            ->sortByDesc(fn (string $path) => filemtime($path))
+            ->first();
     }
 
     protected function isEmptyDirectory(string $directory): bool

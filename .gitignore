@@ -29,6 +29,8 @@ Thumbs.db
 
 # Electron desktop build artifacts
 /electron/dist/
+/electron/dist-new/
+/electron/dist.locked/
 /electron/node_modules/
 
 # Packaging temp cache (generated during desktop builds)

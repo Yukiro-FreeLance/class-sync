@@ -60,10 +60,100 @@
         </section>
     </div>
 
+    <section class="panel mb-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+                <h3 class="font-semibold text-slate-900 dark:text-white mb-1">Desktop App Icon</h3>
+                <p class="text-sm text-slate-500">
+                    Upload a PNG or ICO file (256x256 or larger). Used for the Windows installer, desktop shortcut, and taskbar icon.
+                </p>
+            </div>
+
+            <div class="flex flex-wrap items-start gap-4">
+                <div class="flex h-20 w-20 items-center justify-center rounded-2xl border border-surface-border dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden">
+                    @if ($desktopIcon)
+                        <img src="{{ $desktopIcon->temporaryUrl() }}" alt="Icon preview" class="h-full w-full object-contain">
+                    @elseif ($desktopIconInfo)
+                        <img src="{{ $desktopIconInfo['preview_url'] }}?v={{ md5($desktopIconInfo['updated_at']) }}"
+                            alt="Current desktop icon" class="h-full w-full object-contain">
+                    @else
+                        <svg class="h-10 w-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    @endif
+                </div>
+
+                <div class="space-y-3 min-w-[240px]">
+                    <input wire:model="desktopIcon" id="desktopIcon" type="file" accept=".png,.jpg,.jpeg,.ico,image/png,image/jpeg,image/x-icon"
+                        class="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-green-700 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-green-800">
+
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" wire:click="uploadDesktopIcon" wire:loading.attr="disabled"
+                            wire:target="desktopIcon,uploadDesktopIcon"
+                            @disabled(! $desktopIcon)
+                            class="btn-primary disabled:opacity-50">
+                            <span wire:loading.remove wire:target="uploadDesktopIcon">Save Icon</span>
+                            <span wire:loading wire:target="uploadDesktopIcon">Saving...</span>
+                        </button>
+
+                        <button type="button" wire:click="useSchoolLogoAsDesktopIcon" wire:loading.attr="disabled"
+                            wire:target="useSchoolLogoAsDesktopIcon"
+                            class="btn-secondary">
+                            Use School Logo
+                        </button>
+
+                        @if ($desktopIconInfo)
+                            <button type="button" wire:click="removeDesktopIcon" wire:confirm="Remove the desktop app icon?"
+                                class="btn-secondary text-red-600 hover:text-red-700 dark:text-red-400">
+                                Remove
+                            </button>
+                        @endif
+                    </div>
+
+                    @if ($desktopIconInfo)
+                        <p class="text-xs text-slate-500 font-mono">{{ $desktopIconInfo['filename'] }}</p>
+                    @endif
+
+                    <x-input-error :messages="$errors->get('desktopIcon')" class="mt-1" />
+                    <div wire:loading wire:target="desktopIcon" class="text-sm text-slate-500">Uploading...</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     @if ($lastOutput)
         <div class="panel mb-6">
             <h3 class="font-semibold text-slate-900 dark:text-white mb-2">Build Log</h3>
             <pre class="overflow-x-auto rounded-xl bg-slate-950 text-slate-100 text-xs p-4 whitespace-pre-wrap">{{ $lastOutput }}</pre>
+        </div>
+    @endif
+
+    @if ($latestDesktopInstaller)
+        <div class="panel mb-6 border border-brand-200 dark:border-brand-900/40 bg-brand-50/60 dark:bg-brand-950/20">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <h3 class="font-semibold text-slate-900 dark:text-white">Download Class Sync Desktop App</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                        Latest Windows installer:
+                        <span class="font-mono text-xs">{{ $latestDesktopInstaller['filename'] }}</span>
+                        ·
+                        {{ number_format($latestDesktopInstaller['size'] / 1048576, 1) }} MB
+                    </p>
+                </div>
+                <div class="flex flex-wrap gap-3">
+                    <a href="{{ route('settings.application-package.download', $latestDesktopInstaller['filename']) }}"
+                        class="btn-primary">
+                        Download Installer
+                    </a>
+                    @if ($latestDesktopInstaller['source'] === 'electron')
+                        <button wire:click="importDesktopInstaller(@js($latestDesktopInstaller['filename']))"
+                            class="btn-secondary">
+                            Save to Download Storage
+                        </button>
+                    @endif
+                </div>
+            </div>
         </div>
     @endif
 
@@ -79,6 +169,7 @@
                     <tr>
                         <th>Filename</th>
                         <th>Type</th>
+                        <th>Location</th>
                         <th>Size</th>
                         <th>Created</th>
                         <th class="text-right">Actions</th>
@@ -89,6 +180,9 @@
                         <tr>
                             <td class="font-mono text-xs">{{ $package['filename'] }}</td>
                             <td class="capitalize">{{ $package['type'] }}</td>
+                            <td class="text-slate-500 capitalize">
+                                {{ $package['source'] === 'storage' ? 'Download storage' : 'Build output' }}
+                            </td>
                             <td class="text-slate-500">
                                 @if ($package['size'] < 1024)
                                     {{ $package['size'] }} B
@@ -104,14 +198,23 @@
                             <td class="text-right space-x-3">
                                 <a href="{{ route('settings.application-package.download', $package['filename']) }}"
                                     class="text-green-700 hover:text-brand-500 font-medium text-sm">Download</a>
-                                <button wire:click="deletePackage('{{ $package['filename'] }}')"
-                                    wire:confirm="Delete this package?"
-                                    class="text-red-600 hover:text-red-500 font-medium text-sm">Delete</button>
+                                @if (($package['source'] ?? 'storage') === 'electron')
+                                    <button wire:click="importDesktopInstaller(@js($package['filename']))"
+                                        class="text-brand-700 hover:text-brand-500 font-medium text-sm">
+                                        Save
+                                    </button>
+                                @else
+                                    <button wire:click="deletePackage(@js($package['filename']))"
+                                        wire:confirm="Delete this package?"
+                                        class="text-red-600 hover:text-red-500 font-medium text-sm">Delete</button>
+                                @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center text-slate-500 py-12">No application packages yet.</td>
+                            <td colspan="6" class="text-center text-slate-500 py-12">
+                                No application packages yet. Build a Windows installer or deployment package above.
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>

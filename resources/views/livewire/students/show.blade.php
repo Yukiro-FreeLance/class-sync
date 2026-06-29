@@ -520,24 +520,24 @@
     <p class="text-center text-xs text-slate-400 mt-8 no-print">
         Last updated: {{ $student->updated_at?->format('M d, Y') }} &middot; {{ $student->updated_at?->format('g:i A') }}
     </p>
+
+    <style>
+        @media print {
+            .no-print,
+            .app-sidebar,
+            .app-topbar,
+            aside.no-print {
+                display: none !important;
+            }
+
+            .student-profile-page .panel {
+                box-shadow: none;
+                border: 1px solid #e2e8f0;
+            }
+
+            .xl\:col-span-2 {
+                grid-column: span 3 / span 3;
+            }
+        }
+    </style>
 </div>
-
-<style>
-    @media print {
-        .no-print,
-        .app-sidebar,
-        .app-topbar,
-        aside.no-print {
-            display: none !important;
-        }
-
-        .student-profile-page .panel {
-            box-shadow: none;
-            border: 1px solid #e2e8f0;
-        }
-
-        .xl\:col-span-2 {
-            grid-column: span 3 / span 3;
-        }
-    }
-</style>

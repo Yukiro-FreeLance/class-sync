@@ -91,6 +91,8 @@ Route::middleware(['installed', 'auth'])->group(function () {
         Route::get('/application-package', ApplicationPackage::class)->name('application-package');
         Route::get('/application-package/download/{filename}', [ApplicationPackageController::class, 'download'])
             ->name('application-package.download');
+        Route::get('/application-package/icon', [ApplicationPackageController::class, 'icon'])
+            ->name('application-package.icon');
         Route::get('/attendance', AttendanceConfig::class)->name('attendance');
         Route::prefix('users')->name('users.')->group(function () {
             Route::get('/', SettingsUsersIndex::class)->name('index');
