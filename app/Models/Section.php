@@ -17,6 +17,7 @@ class Section extends Model
     protected $fillable = [
         'grade_level_id',
         'academic_year_id',
+        'course_id',
         'name',
         'adviser_id',
         'room',
@@ -26,6 +27,11 @@ class Section extends Model
     public function gradeLevel(): BelongsTo
     {
         return $this->belongsTo(GradeLevel::class);
+    }
+
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(Course::class);
     }
 
     public function academicYear(): BelongsTo
@@ -56,5 +62,28 @@ class Section extends Model
     public function scopeForGradeLevel(Builder $query, int $gradeLevelId): Builder
     {
         return $query->where('grade_level_id', $gradeLevelId);
+    }
+
+    public function isSeniorHigh(): bool
+    {
+        return $this->gradeLevel?->isSeniorHigh() ?? false;
+    }
+
+    public function getDisplayLabelAttribute(): string
+    {
+        $grade = $this->gradeLevel?->name ?? '';
+        $strand = $this->course?->code;
+        $section = $this->name;
+
+        if ($strand) {
+            return trim("{$grade} {$strand} {$section}");
+        }
+
+        return trim("{$grade} {$section}");
+    }
+
+    public function getStrandNameAttribute(): ?string
+    {
+        return $this->course?->name;
     }
 }

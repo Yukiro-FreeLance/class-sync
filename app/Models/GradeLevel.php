@@ -52,4 +52,9 @@ class GradeLevel extends Model
     {
         return $query->orderBy('sort_order');
     }
+
+    public function isSeniorHigh(): bool
+    {
+        return $this->department?->code === 'shs';
+    }
 }

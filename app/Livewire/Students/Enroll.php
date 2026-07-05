@@ -77,7 +77,18 @@ class Enroll extends Component
 
     public function updatedSectionId(): void
     {
-        $this->course_id = null;
+        if ($this->section_id) {
+            $section = Section::query()->with('gradeLevel.department', 'course')->find($this->section_id);
+
+            if ($section?->gradeLevel?->department?->code === 'shs' && $section->course_id) {
+                $this->course_id = $section->course_id;
+            } else {
+                $this->course_id = null;
+            }
+        } else {
+            $this->course_id = null;
+        }
+
         $this->ensureValidSemesterFilter();
 
         if ($this->section_id && $this->academic_year_id) {
@@ -214,11 +225,13 @@ class Enroll extends Component
                 ->orderBy('sort_order')
                 ->get(),
             'sections' => Section::query()
+                ->with(['course', 'gradeLevel'])
                 ->when($this->grade_level_id, fn ($q) => $q->where('grade_level_id', $this->grade_level_id))
                 ->when($this->academic_year_id, fn ($q) => $q->where(function ($query) {
                     $query->where('academic_year_id', $this->academic_year_id)
                         ->orWhereNull('academic_year_id');
                 }))
+                ->orderBy('course_id')
                 ->orderBy('name')
                 ->get(),
             'courses' => Course::query()
@@ -228,6 +241,9 @@ class Enroll extends Component
             'availableClasses' => $this->availableClasses(),
             'semesterOptions' => $this->semesterFilterOptions(),
             'showCourseField' => $gradeLevel?->department?->code === 'shs',
+            'selectedSection' => $this->section_id
+                ? Section::query()->with('course')->find($this->section_id)
+                : null,
         ];
     }
 

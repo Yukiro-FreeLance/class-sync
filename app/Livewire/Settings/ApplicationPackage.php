@@ -251,6 +251,7 @@ class ApplicationPackage extends Component
         return [
             'checks' => $packages->preflightChecks(),
             'canPackage' => $packages->canPackage(),
+            'canBuildDesktop' => $packages->canBuildDesktop(),
             'packages' => $packages->list(),
             'latestDesktopInstaller' => $packages->latestDesktopInstaller(),
             'desktopIconInfo' => $packages->desktopIconInfo(),

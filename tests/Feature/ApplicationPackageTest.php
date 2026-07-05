@@ -117,9 +117,22 @@ class ApplicationPackageTest extends TestCase
             ->assertOk()
             ->assertSee('Download Class Sync Desktop App')
             ->assertSee($filename)
-            ->assertSee('Download Installer');
+            ->assertSee('Download Installer')
+            ->assertSee('Electron project');
 
         File::delete($distDir.DIRECTORY_SEPARATOR.$filename);
+    }
+
+    public function test_preflight_checks_include_electron_project_when_present(): void
+    {
+        $service = app(ApplicationPackageService::class);
+        $checks = collect($service->preflightChecks())->keyBy('key');
+
+        if (is_file(base_path('electron/package.json'))) {
+            $this->assertTrue($checks['electron']['ok']);
+        }
+
+        $this->assertTrue($checks['process_temp']['ok']);
     }
 
     public function test_super_admin_can_upload_desktop_icon(): void

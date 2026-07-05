@@ -19,6 +19,11 @@ class Course extends Model
         return $this->belongsTo(GradeLevel::class);
     }
 
+    public function sections(): HasMany
+    {
+        return $this->hasMany(Section::class);
+    }
+
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);

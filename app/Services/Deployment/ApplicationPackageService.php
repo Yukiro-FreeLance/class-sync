@@ -24,14 +24,37 @@ class ApplicationPackageService
     {
         $npm = $this->npmExecutable();
         $node = $this->nodeExecutable();
+        $electronPath = $this->resolveElectronProjectPath();
+        $processTemp = $this->ensureProcessTempDirectory();
 
         return [
-            $this->check('zip', 'ZIP extension', extension_loaded('zip'), extension_loaded('zip') ? 'Available' : 'PHP ZipArchive extension is required.'),
+            $this->check(
+                'zip',
+                'ZIP extension',
+                extension_loaded('zip'),
+                extension_loaded('zip')
+                    ? 'Available'
+                    : 'PHP ZipArchive extension is required. Enable extension=zip in '.PHP_BINARY,
+            ),
             $this->check('writable', 'Package storage', is_writable(storage_path('app')) || File::isDirectory($this->packagePath), 'storage/app must be writable.'),
             $this->check('vendor', 'Dependencies', is_dir(base_path('vendor')), 'Run composer install before packaging.'),
             $this->check('assets', 'Frontend build', is_dir(public_path('build')), 'Run npm run build or use Build Assets below.'),
             $this->check('node', 'Node.js', $node !== null, $node ? "Found at {$node}" : 'Set NODE_BINARY in .env if builds fail from the web UI.'),
             $this->check('npm', 'NPM', $npm !== null, $npm ? "Found at {$npm}" : 'Set NPM_BINARY in .env if builds fail from the web UI.'),
+            $this->check(
+                'electron',
+                'Electron project',
+                $electronPath !== null,
+                $electronPath !== null
+                    ? "Found at {$electronPath}"
+                    : 'The electron/ folder is missing. Build the installer from the full development project, not an installed copy of the app.',
+            ),
+            $this->check(
+                'process_temp',
+                'Process temp directory',
+                is_writable($processTemp),
+                "Using {$processTemp}",
+            ),
             $this->check(
                 'desktop_icon',
                 'Desktop app icon',
@@ -248,12 +271,20 @@ class ApplicationPackageService
             && (is_writable(storage_path('app')) || File::isDirectory($this->packagePath));
     }
 
+    public function canBuildDesktop(): bool
+    {
+        return $this->resolveElectronProjectPath() !== null
+            && $this->npmExecutable() !== null
+            && is_writable($this->ensureProcessTempDirectory());
+    }
+
     /**
      * @return array{success: bool, output: string}
      */
     public function buildAssets(): array
     {
         $this->ensurePackageDirectory();
+        $this->ensureProcessTempDirectory();
 
         $result = $this->runNodeCommand(base_path(), $this->npmCommand().' run build', 300);
 
@@ -292,7 +323,8 @@ class ApplicationPackageService
      */
     protected function createDeployPackageWithZipArchive(string $filename, string $finalPath): array
     {
-        $workingPath = tempnam(sys_get_temp_dir(), 'classsync_pkg_');
+        $tempDirectory = $this->ensureProcessTempDirectory();
+        $workingPath = tempnam($tempDirectory, 'classsync_pkg_');
 
         if ($workingPath === false) {
             throw new RuntimeException('Unable to create a temporary package file.');
@@ -341,6 +373,8 @@ class ApplicationPackageService
 
     protected function createDeployPackageWithTar(string $finalPath): void
     {
+        $this->ensureProcessTempDirectory();
+
         $readmePath = base_path('DEPLOYMENT_README.txt');
         File::put($readmePath, $this->deploymentReadme());
 
@@ -369,6 +403,7 @@ class ApplicationPackageService
 
         $result = Process::path(base_path())
             ->timeout(600)
+            ->env($this->nodeProcessEnvironment())
             ->run($command);
 
         File::delete($readmePath);
@@ -392,10 +427,15 @@ class ApplicationPackageService
      */
     public function buildDesktopInstaller(): array
     {
-        $electronPath = base_path('electron');
+        $this->ensureProcessTempDirectory();
 
-        if (! is_dir($electronPath)) {
-            throw new RuntimeException('Electron project folder was not found.');
+        $electronPath = $this->resolveElectronProjectPath();
+
+        if ($electronPath === null) {
+            throw new RuntimeException(
+                'Electron project folder was not found at '.base_path('electron').'. '
+                .'Build the installer from the full development project (with the electron/ folder), not from an installed copy of Class Sync.',
+            );
         }
 
         $npm = $this->requireNpmExecutable();
@@ -942,7 +982,7 @@ TXT;
         $existingPath = getenv('Path') ?: getenv('PATH') ?: '';
         $mergedPath = implode(';', array_unique(array_filter([...$pathEntries, $existingPath])));
 
-        $tempDirectory = $this->windowsEnv('TEMP') ?? $this->windowsEnv('TMP') ?? sys_get_temp_dir();
+        $tempDirectory = $this->ensureProcessTempDirectory();
         $electronCache = storage_path('app'.DIRECTORY_SEPARATOR.'electron-cache');
 
         if (! File::isDirectory($electronCache)) {
@@ -1006,10 +1046,44 @@ TXT;
 
     protected function runNodeCommand(string $cwd, string $command, int $timeout): \Illuminate\Process\ProcessResult
     {
+        $this->ensureProcessTempDirectory();
+
         return Process::path($cwd)
             ->timeout($timeout)
             ->env($this->nodeProcessEnvironment())
             ->run($command);
+    }
+
+    protected function ensureProcessTempDirectory(): string
+    {
+        $tempDirectory = storage_path('app'.DIRECTORY_SEPARATOR.'process-temp');
+
+        if (! File::isDirectory($tempDirectory)) {
+            File::makeDirectory($tempDirectory, 0755, true);
+        }
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            putenv('TEMP='.$tempDirectory);
+            putenv('TMP='.$tempDirectory);
+            $_ENV['TEMP'] = $tempDirectory;
+            $_ENV['TMP'] = $tempDirectory;
+            $_SERVER['TEMP'] = $tempDirectory;
+            $_SERVER['TMP'] = $tempDirectory;
+        }
+
+        return $tempDirectory;
+    }
+
+    protected function resolveElectronProjectPath(): ?string
+    {
+        $electronPath = base_path('electron');
+        $packageJson = $electronPath.DIRECTORY_SEPARATOR.'package.json';
+
+        if (! is_dir($electronPath) || ! is_file($packageJson)) {
+            return null;
+        }
+
+        return $electronPath;
     }
 
     protected function quoteExecutable(string $path): string

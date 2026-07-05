@@ -3,6 +3,7 @@
         ['route' => 'settings.academic.structure', 'label' => 'Departments & Grades'],
         ['route' => 'settings.academic.years', 'label' => 'Academic Years'],
         ['route' => 'settings.academic.sections', 'label' => 'Sections'],
+        ['route' => 'settings.academic.strands', 'label' => 'Strands'],
         ['route' => 'settings.academic.rooms', 'label' => 'Rooms'],
         ['route' => 'settings.academic.subjects', 'label' => 'Subjects'],
         ['route' => 'settings.academic.schedules', 'label' => 'Schedules'],

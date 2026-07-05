@@ -4,8 +4,10 @@ namespace App\Livewire\Settings\Academic;
 
 use App\Enums\DayOfWeek;
 use App\Enums\Semester;
+use App\Enums\UserRole;
 use App\Models\AcademicYear;
 use App\Models\ClassSchedule;
+use App\Models\Course;
 use App\Models\Department;
 use App\Models\GradeLevel;
 use App\Models\Room;
@@ -14,7 +16,9 @@ use App\Models\Setting;
 use App\Models\Subject;
 use App\Models\User;
 use App\Services\Academic\ClassScheduleConflictService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -30,6 +34,9 @@ class Schedules extends Component
     #[Url]
     public string $grade = '';
 
+    #[Url]
+    public string $strand = '';
+
     public ?int $academicYearId = null;
 
     public string $semester = 'first';
@@ -37,6 +44,8 @@ class Schedules extends Component
     public ?int $editingId = null;
 
     public ?int $sectionId = null;
+
+    public ?int $formCourseId = null;
 
     public ?int $subjectId = null;
 
@@ -50,8 +59,49 @@ class Schedules extends Component
 
     public bool $showConflictsOnly = false;
 
+    public string $timeMode = 'same';
+
+    public string $viewMode = 'list';
+
+    /** @var array<int, bool> */
+    public array $expandedDays = [];
+
     /** @var array<int, array{enabled: bool, starts_at: string, ends_at: string}> */
     public array $daySlots = [];
+
+    public ?string $quickAddPanel = null;
+
+    public ?int $quickSectionGradeLevelId = null;
+
+    public ?int $quickSectionCourseId = null;
+
+    public string $quickSectionName = '';
+
+    public ?int $quickSubjectDepartmentId = null;
+
+    public string $quickSubjectName = '';
+
+    public string $quickSubjectCode = '';
+
+    public string $quickTeacherFirstName = '';
+
+    public string $quickTeacherLastName = '';
+
+    public string $quickTeacherUsername = '';
+
+    public string $quickTeacherEmail = '';
+
+    public string $quickRoomName = '';
+
+    public string $quickRoomCode = '';
+
+    public string $quickRoomBuilding = '';
+
+    public ?int $quickStrandGradeLevelId = null;
+
+    public string $quickStrandName = '';
+
+    public string $quickStrandCode = '';
 
     public function mount(): void
     {
@@ -60,12 +110,180 @@ class Schedules extends Component
             ?? AcademicYear::query()->orderByDesc('id')->value('id');
         $this->ensureValidSemester();
         $this->initializeDaySlots();
+        $this->expandAll();
+    }
+
+    public function resetFilters(): void
+    {
+        $this->department = '';
+        $this->grade = '';
+        $this->strand = '';
+        $this->semester = Semester::First->value;
+        $this->academicYearId = AcademicYear::query()->where('is_current', true)->value('id')
+            ?? AcademicYear::query()->orderByDesc('id')->value('id');
+        $this->showConflictsOnly = false;
+        $this->ensureValidSemester();
+    }
+
+    public function updatedTimeMode(): void
+    {
+        if ($this->timeMode === 'same') {
+            $this->applyDefaultTimes();
+        }
+    }
+
+    public function toggleDay(int $day): void
+    {
+        if ($this->editingId) {
+            foreach ($this->daySlots as $value => $slot) {
+                $this->daySlots[$value]['enabled'] = $value === $day
+                    ? ! ($slot['enabled'] ?? false)
+                    : false;
+            }
+
+            if ($this->daySlots[$day]['enabled'] ?? false) {
+                $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
+                $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+            }
+
+            return;
+        }
+
+        $enabled = ! ($this->daySlots[$day]['enabled'] ?? false);
+        $this->daySlots[$day]['enabled'] = $enabled;
+
+        if ($enabled) {
+            $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
+            $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+        }
+    }
+
+    public function expandAll(): void
+    {
+        foreach (DayOfWeek::cases() as $day) {
+            $this->expandedDays[$day->value] = true;
+        }
+    }
+
+    public function collapseAll(): void
+    {
+        foreach (DayOfWeek::cases() as $day) {
+            $this->expandedDays[$day->value] = false;
+        }
+    }
+
+    public function toggleDayPanel(int $day): void
+    {
+        $this->expandedDays[$day] = ! ($this->expandedDays[$day] ?? false);
+    }
+
+    public function addClassForDay(int $day): void
+    {
+        $this->resetForm();
+        $this->daySlots[$day]['enabled'] = true;
+        $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
+        $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+        $this->dispatch('scroll-to-schedule-form');
+    }
+
+    public function copyLastSchedule(): void
+    {
+        if ($this->editingId) {
+            return;
+        }
+
+        $lastSchedule = ClassSchedule::query()
+            ->with(['section.gradeLevel'])
+            ->when($this->academicYearId, fn ($q) => $q->where('academic_year_id', $this->academicYearId))
+            ->when($this->semester, fn ($q) => $q->where('semester', $this->semester))
+            ->latest('updated_at')
+            ->first();
+
+        if (! $lastSchedule) {
+            $this->dispatch('toast', message: 'No previous schedule to copy.', type: 'warning');
+
+            return;
+        }
+
+        $this->sectionId = $lastSchedule->section_id;
+        $this->subjectId = $lastSchedule->subject_id;
+        $this->teacherId = $lastSchedule->teacher_id;
+        $this->roomId = $lastSchedule->room_id;
+        $this->defaultStartsAt = substr((string) $lastSchedule->starts_at, 0, 5);
+        $this->defaultEndsAt = substr((string) $lastSchedule->ends_at, 0, 5);
+
+        foreach ($this->daySlots as $value => $slot) {
+            $this->daySlots[$value]['enabled'] = false;
+        }
+
+        $this->daySlots[$lastSchedule->day_of_week->value]['enabled'] = true;
+        $this->daySlots[$lastSchedule->day_of_week->value]['starts_at'] = $this->defaultStartsAt;
+        $this->daySlots[$lastSchedule->day_of_week->value]['ends_at'] = $this->defaultEndsAt;
+
+        $this->dispatch('toast', message: 'Last schedule copied to form.', type: 'success');
+    }
+
+    public function showComingSoon(string $feature): void
+    {
+        $this->dispatch('toast', message: "{$feature} is coming soon.", type: 'info');
     }
 
     public function updatedDepartment(): void
     {
         $this->grade = '';
+        $this->strand = '';
+        $this->formCourseId = null;
+        $this->sectionId = null;
         $this->ensureValidSemester();
+    }
+
+    public function updatedGrade(): void
+    {
+        $this->strand = '';
+        $this->formCourseId = null;
+        $this->sectionId = null;
+    }
+
+    public function updatedStrand(): void
+    {
+        $this->formCourseId = $this->strand ? (int) $this->strand : null;
+
+        if ($this->sectionId) {
+            $section = Section::query()->find($this->sectionId);
+
+            if ($this->strand && (int) ($section?->course_id) !== (int) $this->strand) {
+                $this->sectionId = null;
+            }
+        }
+    }
+
+    public function updatedFormCourseId(): void
+    {
+        if ($this->sectionId) {
+            $section = Section::query()->find($this->sectionId);
+
+            if ((int) ($section?->course_id) !== (int) $this->formCourseId) {
+                $this->sectionId = null;
+            }
+        }
+    }
+
+    public function updatedSectionId(): void
+    {
+        if ($this->sectionId) {
+            $section = Section::query()->with('course')->find($this->sectionId);
+
+            if ($section?->course_id) {
+                $this->formCourseId = $section->course_id;
+                $this->strand = (string) $section->course_id;
+            }
+        }
+
+        $options = $this->semesterOptionsForSection($this->sectionId);
+
+        if ($options !== [] && ! array_key_exists($this->semester, $options)) {
+            $this->semester = array_key_first($options) ?? Semester::First->value;
+        }
     }
 
     protected function ensureValidSemester(): void
@@ -121,12 +339,17 @@ class Schedules extends Component
         return $this->availableSemesterOptions();
     }
 
-    public function updatedSectionId(): void
+    public function updatedDefaultStartsAt(): void
     {
-        $options = $this->semesterOptionsForSection($this->sectionId);
+        if ($this->timeMode === 'same') {
+            $this->applyDefaultTimes();
+        }
+    }
 
-        if ($options !== [] && ! array_key_exists($this->semester, $options)) {
-            $this->semester = array_key_first($options) ?? Semester::First->value;
+    public function updatedDefaultEndsAt(): void
+    {
+        if ($this->timeMode === 'same') {
+            $this->applyDefaultTimes();
         }
     }
 
@@ -216,7 +439,7 @@ class Schedules extends Component
 
     public function edit(int $id): void
     {
-        $schedule = ClassSchedule::query()->findOrFail($id);
+        $schedule = ClassSchedule::query()->with('section.course')->findOrFail($id);
         $this->editingId = $schedule->id;
         $this->academicYearId = $schedule->academic_year_id;
         $this->sectionId = $schedule->section_id;
@@ -224,14 +447,17 @@ class Schedules extends Component
         $this->teacherId = $schedule->teacher_id;
         $this->roomId = $schedule->room_id;
         $this->semester = $schedule->semester->value;
+        $this->formCourseId = $schedule->section?->course_id;
         $this->defaultStartsAt = substr((string) $schedule->starts_at, 0, 5);
         $this->defaultEndsAt = substr((string) $schedule->ends_at, 0, 5);
+        $this->timeMode = 'same';
         $this->initializeDaySlots($schedule);
+        $this->dispatch('scroll-to-schedule-form');
     }
 
     public function resetForm(): void
     {
-        $this->reset(['editingId', 'sectionId', 'subjectId', 'teacherId', 'roomId']);
+        $this->reset(['editingId', 'sectionId', 'formCourseId', 'subjectId', 'teacherId', 'roomId']);
         $this->defaultStartsAt = '08:00';
         $this->defaultEndsAt = '09:00';
         $this->initializeDaySlots();
@@ -368,24 +594,246 @@ class Schedules extends Component
         $this->dispatch('toast', message: 'Schedule removed.', type: 'success');
     }
 
+    public function openQuickAdd(string $panel): void
+    {
+        $this->resetQuickAddForms();
+        $this->quickAddPanel = $panel;
+        $this->prefillQuickAdd($panel);
+    }
+
+    public function closeQuickAdd(): void
+    {
+        $this->quickAddPanel = null;
+        $this->resetQuickAddForms();
+        $this->resetValidation();
+    }
+
+    public function updatedQuickSectionGradeLevelId(): void
+    {
+        $this->quickSectionCourseId = null;
+    }
+
+    public function saveQuickStrand(): void
+    {
+        $this->validate([
+            'quickStrandGradeLevelId' => ['required', 'exists:grade_levels,id'],
+            'quickStrandName' => ['required', 'string', 'max:150'],
+            'quickStrandCode' => ['required', 'string', 'max:20'],
+        ]);
+
+        $gradeLevel = GradeLevel::query()->with('department')->findOrFail($this->quickStrandGradeLevelId);
+
+        if (! $gradeLevel->isSeniorHigh()) {
+            $this->addError('quickStrandGradeLevelId', 'Strands are only available for Senior High School grades.');
+
+            return;
+        }
+
+        $code = strtoupper($this->quickStrandCode);
+
+        $course = Course::query()->updateOrCreate(
+            [
+                'grade_level_id' => $this->quickStrandGradeLevelId,
+                'code' => $code,
+            ],
+            [
+                'name' => $this->quickStrandName,
+            ],
+        );
+
+        $this->formCourseId = $course->id;
+        $this->strand = (string) $course->id;
+        $this->closeQuickAdd();
+        $this->dispatch('toast', message: 'Strand saved and selected.', type: 'success');
+    }
+
+    public function saveQuickSection(): void
+    {
+        $rules = [
+            'quickSectionGradeLevelId' => ['required', 'exists:grade_levels,id'],
+            'quickSectionName' => ['required', 'string', 'max:50'],
+            'quickSectionCourseId' => ['nullable', 'exists:courses,id'],
+        ];
+
+        $gradeLevel = GradeLevel::query()->with('department')->findOrFail($this->quickSectionGradeLevelId);
+
+        if ($gradeLevel->isSeniorHigh()) {
+            $rules['quickSectionCourseId'] = ['required', 'exists:courses,id'];
+        }
+
+        $this->validate($rules);
+
+        $section = Section::query()->create([
+            'grade_level_id' => $this->quickSectionGradeLevelId,
+            'course_id' => $gradeLevel->isSeniorHigh() ? $this->quickSectionCourseId : null,
+            'academic_year_id' => $this->academicYearId,
+            'name' => $this->quickSectionName,
+        ]);
+
+        $this->sectionId = $section->id;
+
+        if ($section->course_id) {
+            $this->formCourseId = $section->course_id;
+            $this->strand = (string) $section->course_id;
+        }
+
+        $this->closeQuickAdd();
+        $this->dispatch('toast', message: 'Section saved and selected.', type: 'success');
+    }
+
+    public function saveQuickSubject(): void
+    {
+        $this->validate([
+            'quickSubjectDepartmentId' => ['nullable', 'exists:departments,id'],
+            'quickSubjectName' => ['required', 'string', 'max:150'],
+            'quickSubjectCode' => ['required', 'string', 'max:50', 'unique:subjects,code'],
+        ]);
+
+        $subject = Subject::query()->create([
+            'department_id' => $this->quickSubjectDepartmentId,
+            'name' => $this->quickSubjectName,
+            'code' => strtoupper($this->quickSubjectCode),
+            'is_active' => true,
+        ]);
+
+        $this->subjectId = $subject->id;
+        $this->closeQuickAdd();
+        $this->dispatch('toast', message: 'Subject saved and selected.', type: 'success');
+    }
+
+    public function saveQuickTeacher(): void
+    {
+        $this->validate([
+            'quickTeacherFirstName' => ['required', 'string', 'max:100'],
+            'quickTeacherLastName' => ['required', 'string', 'max:100'],
+            'quickTeacherUsername' => ['required', 'string', 'max:50', 'unique:users,username', 'regex:/^[a-zA-Z0-9._-]+$/'],
+            'quickTeacherEmail' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+        ]);
+
+        $username = Str::lower($this->quickTeacherUsername);
+        $email = $this->quickTeacherEmail
+            ? Str::lower($this->quickTeacherEmail)
+            : "{$username}@school.local";
+
+        if (User::query()->where('email', $email)->exists()) {
+            $email = "{$username}+".Str::lower(Str::random(4)).'@school.local';
+        }
+
+        $teacher = User::query()->create([
+            'name' => trim("{$this->quickTeacherFirstName} {$this->quickTeacherLastName}"),
+            'first_name' => $this->quickTeacherFirstName,
+            'last_name' => $this->quickTeacherLastName,
+            'username' => $username,
+            'email' => $email,
+            'password' => Str::password(12),
+            'is_active' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        $teacher->assignRole(UserRole::Teacher->value);
+
+        $this->teacherId = $teacher->id;
+        $this->closeQuickAdd();
+        $this->dispatch('toast', message: 'Teacher saved and selected.', type: 'success');
+    }
+
+    public function saveQuickRoom(): void
+    {
+        $this->validate([
+            'quickRoomName' => ['required', 'string', 'max:100'],
+            'quickRoomCode' => ['nullable', 'string', 'max:50'],
+            'quickRoomBuilding' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $room = Room::query()->create([
+            'name' => $this->quickRoomName,
+            'code' => $this->quickRoomCode ? strtoupper($this->quickRoomCode) : null,
+            'building' => $this->quickRoomBuilding ?: null,
+            'is_active' => true,
+        ]);
+
+        $this->roomId = $room->id;
+        $this->closeQuickAdd();
+        $this->dispatch('toast', message: 'Room saved and selected.', type: 'success');
+    }
+
+    protected function prefillQuickAdd(string $panel): void
+    {
+        match ($panel) {
+            'strand' => $this->quickStrandGradeLevelId = $this->grade ? (int) $this->grade : null,
+            'section' => $this->prefillQuickSection(),
+            'subject' => $this->quickSubjectDepartmentId = $this->sectionDepartmentId(),
+            default => null,
+        };
+    }
+
+    protected function prefillQuickSection(): void
+    {
+        if ($this->grade) {
+            $this->quickSectionGradeLevelId = (int) $this->grade;
+        } elseif ($this->sectionId) {
+            $this->quickSectionGradeLevelId = Section::query()
+                ->whereKey($this->sectionId)
+                ->value('grade_level_id');
+        }
+
+        $this->quickSectionCourseId = $this->formCourseId;
+    }
+
+    protected function resetQuickAddForms(): void
+    {
+        $this->reset([
+            'quickSectionGradeLevelId',
+            'quickSectionCourseId',
+            'quickSectionName',
+            'quickSubjectDepartmentId',
+            'quickSubjectName',
+            'quickSubjectCode',
+            'quickTeacherFirstName',
+            'quickTeacherLastName',
+            'quickTeacherUsername',
+            'quickTeacherEmail',
+            'quickRoomName',
+            'quickRoomCode',
+            'quickRoomBuilding',
+            'quickStrandGradeLevelId',
+            'quickStrandName',
+            'quickStrandCode',
+        ]);
+    }
+
     public function render()
     {
         $sections = Section::query()
-            ->with('gradeLevel.department')
+            ->with(['gradeLevel.department', 'course'])
             ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
             ->when($this->department, fn ($q) => $q->whereHas('gradeLevel', fn ($g) => $g->where('department_id', $this->department)))
+            ->when($this->strand, fn ($q) => $q->where('course_id', $this->strand))
+            ->when($this->formCourseId && ! $this->strand, fn ($q) => $q->where('course_id', $this->formCourseId))
             ->orderBy('grade_level_id')
+            ->orderBy('course_id')
             ->orderBy('name')
             ->get();
 
         $departmentId = $this->sectionDepartmentId();
+        $showStrandFilter = $this->isSeniorHighFilterContext();
+
+        $strands = Course::query()
+            ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
+            ->when($this->department && ! $this->grade, function ($q) {
+                $q->whereHas('gradeLevel', fn ($g) => $g->where('department_id', $this->department));
+            })
+            ->orderBy('grade_level_id')
+            ->orderBy('code')
+            ->get();
 
         $schedules = ClassSchedule::query()
-            ->with(['section.gradeLevel', 'subject', 'teacher', 'room', 'academicYear'])
+            ->with(['section.gradeLevel', 'section.course', 'subject', 'teacher', 'room', 'academicYear'])
             ->when($this->academicYearId, fn ($q) => $q->where('academic_year_id', $this->academicYearId))
             ->when($this->semester, fn ($q) => $q->where('semester', $this->semester))
             ->when($this->grade, fn ($q) => $q->whereHas('section', fn ($s) => $s->where('grade_level_id', $this->grade)))
             ->when($this->department, fn ($q) => $q->whereHas('section.gradeLevel', fn ($g) => $g->where('department_id', $this->department)))
+            ->when($this->strand, fn ($q) => $q->whereHas('section', fn ($s) => $s->where('course_id', $this->strand)))
             ->orderBy('day_of_week')
             ->orderBy('starts_at')
             ->get();
@@ -399,6 +847,9 @@ class Schedules extends Component
         }
 
         $formConflicts = $this->previewFormConflicts();
+        $schedulesByDay = $schedules->groupBy(fn (ClassSchedule $schedule) => $schedule->day_of_week->value);
+        $stats = $this->buildScheduleStats($schedules);
+        $daySummaries = $this->buildDaySummaries($schedulesByDay);
 
         return view('livewire.settings.academic.schedules', [
             'departments' => Department::query()->active()->ordered()->get(),
@@ -424,7 +875,114 @@ class Schedules extends Component
             'conflictScheduleIds' => $conflictScheduleIds,
             'conflictDetails' => $conflictDetails,
             'conflictCount' => count($conflictScheduleIds),
+            'schedulesByDay' => $schedulesByDay,
+            'stats' => $stats,
+            'daySummaries' => $daySummaries,
+            'strands' => $strands,
+            'showStrandFilter' => $showStrandFilter,
+            'showFormStrandField' => $showStrandFilter || $this->formCourseId,
+            'shsGrades' => GradeLevel::query()
+                ->whereHas('department', fn ($q) => $q->where('code', 'shs'))
+                ->ordered()
+                ->get(),
+            'quickSectionIsShs' => $this->quickSectionGradeLevelId
+                ? (GradeLevel::query()->with('department')->find($this->quickSectionGradeLevelId)?->isSeniorHigh() ?? false)
+                : false,
+            'quickSectionStrands' => Course::query()
+                ->when($this->quickSectionGradeLevelId, fn ($q) => $q->where('grade_level_id', $this->quickSectionGradeLevelId))
+                ->orderBy('code')
+                ->get(),
         ]);
+    }
+
+    protected function isSeniorHighFilterContext(): bool
+    {
+        if ($this->department) {
+            return Department::query()
+                ->whereKey($this->department)
+                ->where('code', 'shs')
+                ->exists();
+        }
+
+        if ($this->grade) {
+            return GradeLevel::query()
+                ->whereKey($this->grade)
+                ->whereHas('department', fn ($q) => $q->where('code', 'shs'))
+                ->exists();
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  Collection<int, ClassSchedule>  $schedules
+     * @return array{
+     *     total_classes: int,
+     *     weekly_minutes: int,
+     *     weekly_hours_label: string,
+     *     teachers: int,
+     *     subjects: int,
+     *     rooms_used: int
+     * }
+     */
+    protected function buildScheduleStats(Collection $schedules): array
+    {
+        $weeklyMinutes = $schedules->sum(fn (ClassSchedule $schedule) => $this->scheduleDurationMinutes($schedule));
+
+        return [
+            'total_classes' => $schedules->count(),
+            'weekly_minutes' => $weeklyMinutes,
+            'weekly_hours_label' => $this->formatDurationLabel($weeklyMinutes),
+            'teachers' => $schedules->pluck('teacher_id')->unique()->count(),
+            'subjects' => $schedules->pluck('subject_id')->unique()->count(),
+            'rooms_used' => $schedules->pluck('room_id')->filter()->unique()->count(),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, Collection<int, ClassSchedule>>  $schedulesByDay
+     * @return array<int, array{count: int, minutes: int, label: string}>
+     */
+    protected function buildDaySummaries(Collection $schedulesByDay): array
+    {
+        $summaries = [];
+
+        foreach (DayOfWeek::cases() as $day) {
+            $daySchedules = $schedulesByDay->get($day->value, collect());
+            $minutes = $daySchedules->sum(fn (ClassSchedule $schedule) => $this->scheduleDurationMinutes($schedule));
+
+            $summaries[$day->value] = [
+                'count' => $daySchedules->count(),
+                'minutes' => $minutes,
+                'label' => $this->formatDurationLabel($minutes),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    protected function scheduleDurationMinutes(ClassSchedule $schedule): int
+    {
+        $start = Carbon::parse((string) $schedule->starts_at);
+        $end = Carbon::parse((string) $schedule->ends_at);
+
+        return max(0, $start->diffInMinutes($end));
+    }
+
+    protected function formatDurationLabel(int $minutes): string
+    {
+        $hours = intdiv($minutes, 60);
+        $remainingMinutes = $minutes % 60;
+
+        if ($hours === 0) {
+            return "{$remainingMinutes}m";
+        }
+
+        if ($remainingMinutes === 0) {
+            return "{$hours}h 00m";
+        }
+
+        return sprintf('%dh %02dm', $hours, $remainingMinutes);
     }
 
     protected function sectionDepartmentId(): ?int

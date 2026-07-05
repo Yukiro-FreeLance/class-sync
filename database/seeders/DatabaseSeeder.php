@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             RolePermissionSeeder::class,
             DepartmentSeeder::class,
             GradeLevelSeeder::class,
+            CourseSeeder::class,
             AcademicYearSeeder::class,
             SectionSeeder::class,
             SubjectSeeder::class,

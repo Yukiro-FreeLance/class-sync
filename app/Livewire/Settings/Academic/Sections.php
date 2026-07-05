@@ -3,6 +3,7 @@
 namespace App\Livewire\Settings\Academic;
 
 use App\Models\AcademicYear;
+use App\Models\Course;
 use App\Models\Department;
 use App\Models\GradeLevel;
 use App\Models\Room;
@@ -28,6 +29,8 @@ class Sections extends Component
 
     public ?int $gradeLevelId = null;
 
+    public ?int $courseId = null;
+
     public ?int $academicYearId = null;
 
     public string $name = '';
@@ -45,11 +48,19 @@ class Sections extends Component
             ?? AcademicYear::query()->orderByDesc('id')->value('id');
     }
 
+    public function updatedGradeLevelId(): void
+    {
+        if (! $this->isSeniorHighGrade()) {
+            $this->courseId = null;
+        }
+    }
+
     public function edit(int $id): void
     {
         $section = Section::query()->findOrFail($id);
         $this->editingId = $section->id;
         $this->gradeLevelId = $section->grade_level_id;
+        $this->courseId = $section->course_id;
         $this->academicYearId = $section->academic_year_id;
         $this->name = $section->name;
         $this->adviserId = $section->adviser_id;
@@ -59,24 +70,42 @@ class Sections extends Component
 
     public function resetForm(): void
     {
-        $this->reset(['editingId', 'gradeLevelId', 'name', 'adviserId', 'roomId', 'room']);
+        $this->reset(['editingId', 'gradeLevelId', 'courseId', 'name', 'adviserId', 'roomId', 'room']);
     }
 
     public function save(): void
     {
-        $this->validate([
+        $rules = [
             'gradeLevelId' => ['required', 'exists:grade_levels,id'],
             'academicYearId' => ['nullable', 'exists:academic_years,id'],
             'name' => ['required', 'string', 'max:50'],
             'adviserId' => ['nullable', 'exists:users,id'],
             'roomId' => ['nullable', 'exists:rooms,id'],
             'room' => ['nullable', 'string', 'max:100'],
-        ]);
+            'courseId' => ['nullable', 'exists:courses,id'],
+        ];
+
+        if ($this->isSeniorHighGrade()) {
+            $rules['courseId'] = ['required', 'exists:courses,id'];
+        }
+
+        $this->validate($rules);
+
+        if ($this->courseId) {
+            $course = Course::query()->findOrFail($this->courseId);
+
+            if ((int) $course->grade_level_id !== (int) $this->gradeLevelId) {
+                $this->addError('courseId', 'The selected strand does not belong to this grade level.');
+
+                return;
+            }
+        }
 
         Section::query()->updateOrCreate(
             ['id' => $this->editingId],
             [
                 'grade_level_id' => $this->gradeLevelId,
+                'course_id' => $this->isSeniorHighGrade() ? $this->courseId : null,
                 'academic_year_id' => $this->academicYearId,
                 'name' => $this->name,
                 'adviser_id' => $this->adviserId,
@@ -95,6 +124,18 @@ class Sections extends Component
         $this->dispatch('toast', message: 'Section removed.', type: 'success');
     }
 
+    protected function isSeniorHighGrade(): bool
+    {
+        if (! $this->gradeLevelId) {
+            return false;
+        }
+
+        return GradeLevel::query()
+            ->with('department')
+            ->find($this->gradeLevelId)
+            ?->isSeniorHigh() ?? false;
+    }
+
     public function render()
     {
         $grades = GradeLevel::query()
@@ -104,12 +145,13 @@ class Sections extends Component
             ->get();
 
         $sections = Section::query()
-            ->with(['gradeLevel.department', 'adviser', 'assignedRoom', 'academicYear'])
+            ->with(['gradeLevel.department', 'course', 'adviser', 'assignedRoom', 'academicYear'])
             ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
             ->when($this->department, function ($q) {
                 $q->whereHas('gradeLevel', fn ($g) => $g->where('department_id', $this->department));
             })
             ->orderBy('grade_level_id')
+            ->orderBy('course_id')
             ->orderBy('name')
             ->get();
 
@@ -120,6 +162,11 @@ class Sections extends Component
             'years' => AcademicYear::query()->orderByDesc('start_date')->get(),
             'rooms' => Room::query()->active()->orderBy('name')->get(),
             'teachers' => User::query()->assignableAsTeacher()->active()->orderBy('last_name')->get(),
+            'strands' => Course::query()
+                ->when($this->gradeLevelId, fn ($q) => $q->where('grade_level_id', $this->gradeLevelId))
+                ->orderBy('code')
+                ->get(),
+            'showStrandField' => $this->isSeniorHighGrade(),
         ]);
     }
 }

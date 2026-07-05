@@ -14,6 +14,7 @@ use App\Livewire\Reports\Index as ReportsIndex;
 use App\Livewire\Settings\Academic\Rooms as AcademicRooms;
 use App\Livewire\Settings\Academic\Schedules as AcademicSchedules;
 use App\Livewire\Settings\Academic\Sections as AcademicSections;
+use App\Livewire\Settings\Academic\Strands as AcademicStrands;
 use App\Livewire\Settings\Academic\Structure as AcademicStructure;
 use App\Livewire\Settings\Academic\Subjects as AcademicSubjects;
 use App\Livewire\Settings\Academic\Years as AcademicYears;
@@ -83,6 +84,7 @@ Route::middleware(['installed', 'auth'])->group(function () {
             Route::get('/structure', AcademicStructure::class)->name('structure');
             Route::get('/years', AcademicYears::class)->name('years');
             Route::get('/sections', AcademicSections::class)->name('sections');
+            Route::get('/strands', AcademicStrands::class)->name('strands');
             Route::get('/rooms', AcademicRooms::class)->name('rooms');
             Route::get('/subjects', AcademicSubjects::class)->name('subjects');
             Route::get('/schedules', AcademicSchedules::class)->name('schedules');

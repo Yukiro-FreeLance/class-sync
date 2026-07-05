@@ -297,4 +297,98 @@ class ClassScheduleTest extends TestCase
         $this->assertNotEmpty($conflicts);
         $this->assertSame('teacher', $conflicts[0]['type']);
     }
+
+    public function test_reset_filters_clears_department_and_grade(): void
+    {
+        Livewire::actingAs($this->admin)
+            ->test(Schedules::class)
+            ->set('department', '1')
+            ->set('grade', '1')
+            ->call('resetFilters')
+            ->assertSet('department', '')
+            ->assertSet('grade', '');
+    }
+
+    public function test_toggle_day_enables_and_disables_day_slot(): void
+    {
+        Livewire::actingAs($this->admin)
+            ->test(Schedules::class)
+            ->call('toggleDay', DayOfWeek::Monday->value)
+            ->assertSet('daySlots.1.enabled', true)
+            ->call('toggleDay', DayOfWeek::Monday->value)
+            ->assertSet('daySlots.1.enabled', false);
+    }
+
+    public function test_add_class_for_day_prepares_form_for_that_day(): void
+    {
+        Livewire::actingAs($this->admin)
+            ->test(Schedules::class)
+            ->call('addClassForDay', DayOfWeek::Wednesday->value)
+            ->assertSet('editingId', null)
+            ->assertSet('daySlots.3.enabled', true)
+            ->assertSet('daySlots.1.enabled', false);
+    }
+
+    public function test_schedule_overview_renders_stats_and_daily_sections(): void
+    {
+        ClassSchedule::query()->create([
+            'academic_year_id' => $this->academicYear->id,
+            'section_id' => $this->section->id,
+            'subject_id' => $this->subject->id,
+            'teacher_id' => $this->teacher->id,
+            'semester' => Semester::First,
+            'day_of_week' => DayOfWeek::Monday,
+            'starts_at' => '08:00:00',
+            'ends_at' => '09:00:00',
+        ]);
+
+        ClassSchedule::query()->create([
+            'academic_year_id' => $this->academicYear->id,
+            'section_id' => $this->section->id,
+            'subject_id' => $this->subject->id,
+            'teacher_id' => $this->teacher->id,
+            'semester' => Semester::First,
+            'day_of_week' => DayOfWeek::Tuesday,
+            'starts_at' => '08:00:00',
+            'ends_at' => '09:00:00',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(Schedules::class)
+            ->set('academicYearId', $this->academicYear->id)
+            ->set('semester', Semester::First->value)
+            ->assertSee('Schedule Overview')
+            ->assertSee('Total Classes')
+            ->assertSee('Weekly Hours')
+            ->assertSee('2')
+            ->assertSee('Monday')
+            ->assertSee('Tuesday')
+            ->assertSee('Add Class');
+    }
+
+    public function test_copy_last_schedule_populates_form_from_latest_entry(): void
+    {
+        ClassSchedule::query()->create([
+            'academic_year_id' => $this->academicYear->id,
+            'section_id' => $this->section->id,
+            'subject_id' => $this->subject->id,
+            'teacher_id' => $this->teacher->id,
+            'semester' => Semester::First,
+            'day_of_week' => DayOfWeek::Thursday,
+            'starts_at' => '10:00:00',
+            'ends_at' => '11:00:00',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(Schedules::class)
+            ->set('academicYearId', $this->academicYear->id)
+            ->set('semester', Semester::First->value)
+            ->call('copyLastSchedule')
+            ->assertSet('sectionId', $this->section->id)
+            ->assertSet('subjectId', $this->subject->id)
+            ->assertSet('teacherId', $this->teacher->id)
+            ->assertSet('defaultStartsAt', '10:00')
+            ->assertSet('defaultEndsAt', '11:00')
+            ->assertSet('daySlots.4.enabled', true);
+    }
 }

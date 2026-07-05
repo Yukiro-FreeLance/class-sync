@@ -22,6 +22,11 @@ class StudentEnrollmentService
     public function enroll(Student $student, array $data): StudentEnrollment
     {
         return DB::transaction(function () use ($student, $data) {
+            $courseId = $this->resolveCourseId(
+                isset($data['section_id']) ? (int) $data['section_id'] : null,
+                isset($data['course_id']) ? (int) $data['course_id'] : null,
+            );
+
             $classScheduleIds = $this->normalizeClassScheduleIds(
                 $data['class_schedule_ids'] ?? [],
                 (int) ($data['section_id'] ?? 0),
@@ -36,7 +41,7 @@ class StudentEnrollmentService
                 [
                     'grade_level_id' => $data['grade_level_id'],
                     'section_id' => $data['section_id'] ?? null,
-                    'course_id' => $data['course_id'] ?? null,
+                    'course_id' => $courseId,
                     'status' => $data['status'] ?? EnrollmentStatus::Enrolled->value,
                     'enrollment_date' => $data['enrollment_date'] ?? now()->toDateString(),
                     'remarks' => $data['remarks'] ?? null,
@@ -288,5 +293,30 @@ class StudentEnrollmentService
             'course_id' => $enrollment->course_id,
             'enrollment_date' => $enrollment->enrollment_date,
         ]);
+    }
+
+    protected function resolveCourseId(?int $sectionId, ?int $courseId): ?int
+    {
+        if (! $sectionId) {
+            return $courseId ?: null;
+        }
+
+        $section = Section::query()->with('gradeLevel.department')->find($sectionId);
+
+        if ($section?->gradeLevel?->department?->code !== 'shs') {
+            return null;
+        }
+
+        if ($section->course_id) {
+            if ($courseId && (int) $courseId !== (int) $section->course_id) {
+                throw ValidationException::withMessages([
+                    'course_id' => 'The selected strand must match the section strand.',
+                ]);
+            }
+
+            return $section->course_id;
+        }
+
+        return $courseId ?: null;
     }
 }

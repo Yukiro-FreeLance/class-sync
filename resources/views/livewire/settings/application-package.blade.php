@@ -48,6 +48,7 @@
                 </button>
 
                 <button wire:click="buildDesktopInstaller" wire:loading.attr="disabled" wire:target="buildDesktopInstaller"
+                    @disabled(! $canBuildDesktop)
                     class="btn-secondary w-full disabled:opacity-50">
                     <span wire:loading.remove wire:target="buildDesktopInstaller">Build Windows Installer (.exe)</span>
                     <span wire:loading wire:target="buildDesktopInstaller">Building installer...</span>
@@ -55,7 +56,7 @@
             </div>
 
             <p class="text-xs text-slate-500 mt-4">
-                The ZIP archive is ready for LAN/server deployment. The Windows installer bundles Electron and requires Node.js on this machine.
+                The ZIP archive is ready for LAN/server deployment. The Windows installer bundles Electron and requires Node.js, the <code class="text-xs">electron/</code> folder, and a writable temp directory on this machine.
             </p>
         </section>
     </div>

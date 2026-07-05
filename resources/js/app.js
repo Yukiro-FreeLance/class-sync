@@ -124,6 +124,204 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
+    Alpine.data('scheduleTutorial', () => ({
+        active: false,
+        stepIndex: 0,
+        highlight: { top: 0, left: 0, width: 0, height: 0 },
+        popover: { top: 0, left: 0, width: 360 },
+        storageKey: 'class-sync_schedule_tutorial_v1',
+
+        steps: [
+            {
+                target: null,
+                title: 'Welcome to Class Schedules',
+                body: 'This guided tour shows you how to build a weekly class schedule—from setting filters to saving entries. It only takes a minute.',
+                centered: true,
+            },
+            {
+                target: '[data-schedule-tour="filters"]',
+                title: 'Step 1 · Set your filters',
+                body: 'Start by choosing the academic year, department, semester, and grade. For Senior High School, also pick a strand to narrow sections.',
+                placement: 'bottom',
+            },
+            {
+                target: '[data-schedule-tour="class-details"]',
+                title: 'Step 2 · Choose class details',
+                body: 'Select the section, subject, teacher, and optional room. Use the + buttons to add missing items without leaving this page.',
+                placement: 'right',
+            },
+            {
+                target: '[data-schedule-tour="time-days"]',
+                title: 'Step 3 · Set time and days',
+                body: 'Pick a time range and toggle the days this class meets. Use Mon–Fri for a standard week, or set custom times per day.',
+                placement: 'right',
+            },
+            {
+                target: '[data-schedule-tour="submit"]',
+                title: 'Step 4 · Save to schedule',
+                body: 'Click Add to Schedule when everything looks good. Conflict warnings appear if the section, teacher, or room overlaps.',
+                placement: 'top',
+            },
+            {
+                target: '[data-schedule-tour="overview"]',
+                title: 'Step 5 · Review the overview',
+                body: 'Saved classes appear here grouped by day. Use Edit or Delete on any row, or Add Class on a specific day.',
+                placement: 'left',
+            },
+            {
+                target: null,
+                title: "You're all set!",
+                body: 'You can replay this tour anytime with the Tutorial button. Happy scheduling!',
+                centered: true,
+            },
+        ],
+
+        init() {
+            this._onResize = () => this.active && this.positionStep();
+            window.addEventListener('resize', this._onResize);
+
+            if (! localStorage.getItem(this.storageKey)) {
+                setTimeout(() => this.start(false), 900);
+            }
+        },
+
+        destroy() {
+            window.removeEventListener('resize', this._onResize);
+            document.body.classList.remove('overflow-hidden');
+        },
+
+        get step() {
+            return this.steps[this.stepIndex] ?? this.steps[0];
+        },
+
+        get isCentered() {
+            return ! this.step.target || this.step.centered;
+        },
+
+        get progress() {
+            return ((this.stepIndex + 1) / this.steps.length) * 100;
+        },
+
+        get isFirst() {
+            return this.stepIndex === 0;
+        },
+
+        get isLast() {
+            return this.stepIndex === this.steps.length - 1;
+        },
+
+        start(force = true) {
+            if (! force && localStorage.getItem(this.storageKey)) {
+                return;
+            }
+
+            this.stepIndex = 0;
+            this.active = true;
+            document.body.classList.add('overflow-hidden');
+            this.$nextTick(() => this.positionStep());
+        },
+
+        finish() {
+            this.active = false;
+            document.body.classList.remove('overflow-hidden');
+            localStorage.setItem(this.storageKey, '1');
+        },
+
+        skip() {
+            this.finish();
+        },
+
+        next() {
+            if (this.isLast) {
+                this.finish();
+
+                return;
+            }
+
+            this.stepIndex++;
+            this.$nextTick(() => this.positionStep());
+        },
+
+        prev() {
+            if (this.isFirst) {
+                return;
+            }
+
+            this.stepIndex--;
+            this.$nextTick(() => this.positionStep());
+        },
+
+        positionStep() {
+            const step = this.step;
+
+            if (! step.target) {
+                return;
+            }
+
+            const element = document.querySelector(step.target);
+
+            if (! element) {
+                return;
+            }
+
+            element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+            window.setTimeout(() => {
+                const rect = element.getBoundingClientRect();
+                const padding = 10;
+
+                this.highlight = {
+                    top: Math.max(rect.top - padding, 8),
+                    left: Math.max(rect.left - padding, 8),
+                    width: Math.min(rect.width + padding * 2, window.innerWidth - 16),
+                    height: rect.height + padding * 2,
+                };
+
+                this.positionPopover(rect, step.placement ?? 'bottom');
+            }, 320);
+        },
+
+        positionPopover(rect, placement) {
+            const width = Math.min(360, window.innerWidth - 32);
+            const height = 240;
+            const gap = 14;
+            let top = 16;
+            let left = 16;
+
+            switch (placement) {
+                case 'top':
+                    top = rect.top - height - gap;
+                    left = this.clampHorizontal(rect.left, width);
+                    break;
+                case 'left':
+                    top = this.clampVertical(rect.top, height);
+                    left = rect.left - width - gap;
+                    break;
+                case 'right':
+                    top = this.clampVertical(rect.top, height);
+                    left = rect.right + gap;
+                    break;
+                default:
+                    top = rect.bottom + gap;
+                    left = this.clampHorizontal(rect.left, width);
+            }
+
+            this.popover = {
+                top: Math.max(16, Math.min(top, window.innerHeight - height - 16)),
+                left: Math.max(16, Math.min(left, window.innerWidth - width - 16)),
+                width,
+            };
+        },
+
+        clampHorizontal(value, width) {
+            return Math.max(16, Math.min(value, window.innerWidth - width - 16));
+        },
+
+        clampVertical(value, height) {
+            return Math.max(16, Math.min(value, window.innerHeight - height - 16));
+        },
+    }));
+
     Alpine.data('appShell', () => ({
         sidebarOpen: false,
         sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',

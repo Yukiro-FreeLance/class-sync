@@ -137,4 +137,9 @@ class Department extends Model
     {
         return $query->orderBy('sort_order')->orderBy('name');
     }
+
+    public function isSeniorHigh(): bool
+    {
+        return $this->code === 'shs';
+    }
 }

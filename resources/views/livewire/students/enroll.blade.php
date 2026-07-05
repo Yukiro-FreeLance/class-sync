@@ -52,7 +52,7 @@
                     <select wire:model.live="section_id" id="section_id" class="mt-1 input-field" @disabled(!$grade_level_id)>
                         <option value="">Select section</option>
                         @foreach ($sections as $section)
-                            <option value="{{ $section->id }}">{{ $section->name }}</option>
+                            <option value="{{ $section->id }}">{{ $section->display_label }}</option>
                         @endforeach
                     </select>
                     <x-input-error :messages="$errors->get('section_id')" class="mt-1" />
@@ -61,12 +61,19 @@
                 @if ($showCourseField)
                     <div>
                         <x-input-label for="course_id" value="Track / Strand" />
-                        <select wire:model="course_id" id="course_id" class="mt-1 input-field">
-                            <option value="">Select track (optional)</option>
-                            @foreach ($courses as $course)
-                                <option value="{{ $course->id }}">{{ $course->name }}</option>
-                            @endforeach
-                        </select>
+                        @if ($selectedSection?->course_id)
+                            <p class="mt-1 input-field bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200">
+                                {{ $selectedSection->course->code }} — {{ $selectedSection->course->name }}
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">Inherited from the selected section.</p>
+                        @else
+                            <select wire:model="course_id" id="course_id" class="mt-1 input-field" @disabled(!$grade_level_id)>
+                                <option value="">Select strand…</option>
+                                @foreach ($courses as $course)
+                                    <option value="{{ $course->id }}">{{ $course->code }} — {{ $course->name }}</option>
+                                @endforeach
+                            </select>
+                        @endif
                         <x-input-error :messages="$errors->get('course_id')" class="mt-1" />
                     </div>
                 @endif
