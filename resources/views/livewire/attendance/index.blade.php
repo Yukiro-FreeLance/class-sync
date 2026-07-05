@@ -129,7 +129,9 @@
                 <p class="text-sm text-slate-500">Uses the same subject schedule and remarks as bulk attendance.</p>
 
                 <x-attendance-class-filters :departments="$departments" :grades="$grades" :sections="$sections" :class-schedules="$classSchedules"
-                    :selected-schedule="$selectedSchedule" :weekday-label="$weekdayLabel" :department-id="$department" :grade-id="$grade" :section-id="$section" />
+                    :selected-schedule="$selectedSchedule" :weekday-label="$weekdayLabel" :strands="$strands"
+                    :show-strand-filter="$showStrandFilter" :department-id="$department" :grade-id="$grade"
+                    :strand-id="$strand" :section-id="$section" />
 
                 <div class="relative">
                     <x-input-label value="Search Student" />

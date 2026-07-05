@@ -155,4 +155,71 @@ class SeniorHighStrandTest extends TestCase
             'name' => 'Oral Communication',
         ]);
     }
+
+    public function test_bulk_enrollment_shows_strand_filter_for_senior_high(): void
+    {
+        Course::query()->create([
+            'grade_level_id' => $this->grade11->id,
+            'name' => 'Science, Technology, Engineering and Mathematics',
+            'code' => 'STEM',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(\App\Livewire\Students\BulkEnroll::class)
+            ->set('department', (string) $this->shsDepartment->id)
+            ->assertSee('Strand');
+    }
+
+    public function test_bulk_enrollment_sections_use_display_label_with_strand(): void
+    {
+        $year = AcademicYear::factory()->create(['is_current' => true]);
+
+        $stem = Course::query()->create([
+            'grade_level_id' => $this->grade11->id,
+            'name' => 'STEM',
+            'code' => 'STEM',
+        ]);
+
+        $abm = Course::query()->create([
+            'grade_level_id' => $this->grade11->id,
+            'name' => 'ABM',
+            'code' => 'ABM',
+        ]);
+
+        Section::query()->create([
+            'grade_level_id' => $this->grade11->id,
+            'course_id' => $stem->id,
+            'academic_year_id' => $year->id,
+            'name' => 'A',
+        ]);
+
+        Section::query()->create([
+            'grade_level_id' => $this->grade11->id,
+            'course_id' => $abm->id,
+            'academic_year_id' => $year->id,
+            'name' => 'A',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(\App\Livewire\Students\BulkEnroll::class)
+            ->set('department', (string) $this->shsDepartment->id)
+            ->set('grade', (string) $this->grade11->id)
+            ->set('strand', (string) $stem->id)
+            ->assertSee('Grade 11 STEM A')
+            ->assertDontSee('Grade 11 ABM A');
+    }
+
+    public function test_attendance_shows_strand_filter_for_senior_high(): void
+    {
+        Course::query()->create([
+            'grade_level_id' => $this->grade11->id,
+            'name' => 'STEM',
+            'code' => 'STEM',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(\App\Livewire\Attendance\Bulk::class)
+            ->set('department', (string) $this->shsDepartment->id)
+            ->assertSee('Strand');
+    }
 }

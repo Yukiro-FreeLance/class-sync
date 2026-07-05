@@ -26,6 +26,8 @@ class Enroll extends Component
 
     public ?int $grade_level_id = null;
 
+    public ?int $strand_id = null;
+
     public ?int $section_id = null;
 
     public ?int $course_id = null;
@@ -61,6 +63,7 @@ class Enroll extends Component
     public function updatedDepartmentId(): void
     {
         $this->grade_level_id = null;
+        $this->strand_id = null;
         $this->section_id = null;
         $this->course_id = null;
         $this->class_schedule_ids = [];
@@ -69,10 +72,18 @@ class Enroll extends Component
 
     public function updatedGradeLevelId(): void
     {
+        $this->strand_id = null;
         $this->section_id = null;
         $this->course_id = null;
         $this->class_schedule_ids = [];
         $this->ensureValidSemesterFilter();
+    }
+
+    public function updatedStrandId(): void
+    {
+        $this->section_id = null;
+        $this->course_id = null;
+        $this->class_schedule_ids = [];
     }
 
     public function updatedSectionId(): void
@@ -227,6 +238,7 @@ class Enroll extends Component
             'sections' => Section::query()
                 ->with(['course', 'gradeLevel'])
                 ->when($this->grade_level_id, fn ($q) => $q->where('grade_level_id', $this->grade_level_id))
+                ->when($this->strand_id, fn ($q) => $q->where('course_id', $this->strand_id))
                 ->when($this->academic_year_id, fn ($q) => $q->where(function ($query) {
                     $query->where('academic_year_id', $this->academic_year_id)
                         ->orWhereNull('academic_year_id');
@@ -241,6 +253,10 @@ class Enroll extends Component
             'availableClasses' => $this->availableClasses(),
             'semesterOptions' => $this->semesterFilterOptions(),
             'showCourseField' => $gradeLevel?->department?->code === 'shs',
+            'strands' => Course::query()
+                ->when($this->grade_level_id, fn ($q) => $q->where('grade_level_id', $this->grade_level_id))
+                ->orderBy('code')
+                ->get(),
             'selectedSection' => $this->section_id
                 ? Section::query()->with('course')->find($this->section_id)
                 : null,

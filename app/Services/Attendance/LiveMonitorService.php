@@ -32,7 +32,7 @@ class LiveMonitorService
         $totalStudents = Student::query()->where('status', StudentStatus::Active)->count();
 
         $todayRecords = AttendanceRecord::query()
-            ->with(['student.gradeLevel', 'student.section'])
+            ->with(['student.gradeLevel', 'student.section.course'])
             ->whereDate('date', $todayString)
             ->get();
 
@@ -45,7 +45,7 @@ class LiveMonitorService
         $checkouts = $todayRecords->whereNotNull('time_out')->count();
 
         $inside = $this->attendanceService->getStudentsInsideCampus($today)
-            ->load(['student.gradeLevel', 'student.section'])
+            ->load(['student.gradeLevel', 'student.section.course'])
             ->map(fn (AttendanceRecord $record) => $this->formatInsideRecord($record, $at));
 
         $recentCheckIns = $todayRecords
@@ -122,7 +122,7 @@ class LiveMonitorService
             'name' => $record->student?->full_name ?? 'Unknown',
             'student_number' => $record->student?->student_number,
             'grade' => $record->student?->gradeLevel?->name,
-            'section' => $record->student?->section?->name,
+            'section' => $record->student?->section?->display_label,
             'time_in' => $record->time_in ? Str::substr((string) $record->time_in, 0, 5) : '—',
             'duration' => $minutesInside !== null ? $this->humanDuration($minutesInside) : '—',
             'status' => $record->status,
@@ -139,7 +139,7 @@ class LiveMonitorService
             'name' => $record->student?->full_name ?? 'Unknown',
             'student_number' => $record->student?->student_number,
             'grade' => $record->student?->gradeLevel?->name,
-            'section' => $record->student?->section?->name,
+            'section' => $record->student?->section?->display_label,
             'time' => $record->time_in ? Str::substr((string) $record->time_in, 0, 5) : '—',
             'status' => $record->status,
             'method' => $record->method?->label() ?? 'Manual',
@@ -169,7 +169,7 @@ class LiveMonitorService
         $recordedIds = $todayRecords->pluck('student_id');
 
         return Student::query()
-            ->with(['gradeLevel', 'section'])
+            ->with(['gradeLevel', 'section.course'])
             ->where('status', StudentStatus::Active)
             ->when($recordedIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $recordedIds))
             ->orderBy('last_name')
@@ -180,7 +180,7 @@ class LiveMonitorService
                 'name' => $student->full_name,
                 'student_number' => $student->student_number,
                 'grade' => $student->gradeLevel?->name,
-                'section' => $student->section?->name,
+                'section' => $student->section?->display_label,
             ]);
     }
 
@@ -193,7 +193,7 @@ class LiveMonitorService
         $dayOfWeek = $this->scheduleResolver->dayOfWeekForDate($at->toDateString());
 
         return ClassSchedule::query()
-            ->with(['subject', 'section.gradeLevel', 'teacher', 'room'])
+            ->with(['subject', 'section.gradeLevel', 'section.course', 'teacher', 'room'])
             ->where('day_of_week', $dayOfWeek)
             ->where('starts_at', '<=', $now)
             ->where('ends_at', '>=', $now)
@@ -212,7 +212,7 @@ class LiveMonitorService
         $dayOfWeek = $this->scheduleResolver->dayOfWeekForDate($at->toDateString());
 
         return ClassSchedule::query()
-            ->with(['subject', 'section.gradeLevel', 'teacher', 'room'])
+            ->with(['subject', 'section.gradeLevel', 'section.course', 'teacher', 'room'])
             ->where('day_of_week', $dayOfWeek)
             ->where('starts_at', '>', $now)
             ->orderBy('starts_at')
@@ -232,7 +232,7 @@ class LiveMonitorService
 
         return [
             'subject' => $schedule->subject?->name ?? 'Class',
-            'section' => trim(($schedule->section?->gradeLevel?->name ?? '').' '.($schedule->section?->name ?? '')),
+            'section' => $schedule->section?->display_label ?? '—',
             'teacher' => $schedule->teacher?->name ?? '—',
             'room' => $schedule->room?->name ?? $schedule->section?->room ?? '—',
             'time' => "{$starts} – {$ends}",

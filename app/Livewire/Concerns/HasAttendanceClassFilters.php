@@ -3,6 +3,7 @@
 namespace App\Livewire\Concerns;
 
 use App\Models\ClassSchedule;
+use App\Models\Course;
 use App\Models\Department;
 use App\Models\GradeLevel;
 use App\Models\Section;
@@ -21,6 +22,9 @@ trait HasAttendanceClassFilters
     public string $grade = '';
 
     #[Url]
+    public string $strand = '';
+
+    #[Url]
     public string $section = '';
 
     public string $date = '';
@@ -35,12 +39,21 @@ trait HasAttendanceClassFilters
     public function updatedDepartment(): void
     {
         $this->grade = '';
+        $this->strand = '';
         $this->section = '';
         $this->classScheduleId = null;
         $this->onAttendanceFiltersChanged();
     }
 
     public function updatedGrade(): void
+    {
+        $this->strand = '';
+        $this->section = '';
+        $this->classScheduleId = null;
+        $this->onAttendanceFiltersChanged();
+    }
+
+    public function updatedStrand(): void
     {
         $this->section = '';
         $this->classScheduleId = null;
@@ -215,17 +228,19 @@ trait HasAttendanceClassFilters
             : [];
 
         $sectionsQuery = Section::query()
+            ->with(['course', 'gradeLevel'])
             ->when($this->grade, fn ($query) => $query->where('grade_level_id', $this->grade))
             ->when($this->department, fn ($query) => $query->whereHas(
                 'gradeLevel',
                 fn ($gradeQuery) => $gradeQuery->where('department_id', $this->department),
-            ));
+            ))
+            ->when($this->strand, fn ($query) => $query->where('course_id', $this->strand));
 
         if ($user && ! $teacherScope->bypassesAttendanceScope($user)) {
             $sectionsQuery->whereIn('id', $accessibleSectionIds ?: [-1]);
         }
 
-        $sections = $sectionsQuery->orderBy('name')->get();
+        $sections = $sectionsQuery->orderBy('course_id')->orderBy('name')->get();
 
         $grades = GradeLevel::query()
             ->when($this->department, fn ($query) => $query->where('department_id', $this->department))
@@ -254,6 +269,15 @@ trait HasAttendanceClassFilters
 
         return [
             'isTeacherScoped' => $isTeacherScoped,
+            'showStrandFilter' => $this->isSeniorHighFilterContext(),
+            'strands' => Course::query()
+                ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
+                ->when($this->department && ! $this->grade, function ($q) {
+                    $q->whereHas('gradeLevel', fn ($g) => $g->where('department_id', $this->department));
+                })
+                ->orderBy('grade_level_id')
+                ->orderBy('code')
+                ->get(),
             'departments' => $departments,
             'grades' => $grades,
             'sections' => $sections,
@@ -263,5 +287,24 @@ trait HasAttendanceClassFilters
                 : null,
             'weekdayLabel' => Carbon::parse($this->date)->format('l'),
         ];
+    }
+
+    protected function isSeniorHighFilterContext(): bool
+    {
+        if ($this->department) {
+            return Department::query()
+                ->whereKey($this->department)
+                ->where('code', 'shs')
+                ->exists();
+        }
+
+        if ($this->grade) {
+            return GradeLevel::query()
+                ->whereKey($this->grade)
+                ->whereHas('department', fn ($q) => $q->where('code', 'shs'))
+                ->exists();
+        }
+
+        return false;
     }
 }

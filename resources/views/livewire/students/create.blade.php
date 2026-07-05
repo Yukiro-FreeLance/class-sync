@@ -8,7 +8,7 @@
     <form wire:submit="save" class="panel max-w-3xl">
         <div class="grid sm:grid-cols-2 gap-6">
             <div class="sm:col-span-2">
-                <x-input-label for="student_number" value="Student Number" />
+                <x-input-label for="student_number" value="LRN No." />
                 <x-text-input wire:model="student_number" id="student_number" class="mt-1 block w-full font-mono" />
                 <x-input-error :messages="$errors->get('student_number')" class="mt-1" />
             </div>

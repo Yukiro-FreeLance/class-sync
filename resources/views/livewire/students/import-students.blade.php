@@ -51,7 +51,7 @@
                                 <li>Leave <code
                                         class="text-xs bg-white dark:bg-slate-800 px-1 rounded">student_number</code>
                                     blank to auto-generate IDs.</li>
-                                <li>Existing student numbers and RFID tags are <strong>skipped</strong> automatically.</li>
+                                <li>Existing lrn no tags are <strong>skipped</strong> automatically.</li>
                                 <li>Enable <strong>Update existing</strong> on upload to overwrite matched records.</li>
                             </ul>
                         </div>
@@ -108,7 +108,7 @@
                             <input type="checkbox" wire:model="updateExisting"
                                 class="rounded border-surface-border text-green-700 focus:ring-brand-500">
                             <span class="text-sm text-slate-600 dark:text-slate-400">Update existing students when
-                                student number or RFID matches</span>
+                                lrn no or RFID matches</span>
                         </label>
 
                         <div class="flex gap-3 pt-2">

@@ -249,19 +249,19 @@
                             </x-slot:icon>
                         </x-student-profile-field>
 
-                        <x-student-profile-field label="QR Code / Student ID" class="sm:col-span-2">
+                        <x-student-profile-field label="LRN No." class="sm:col-span-2">
                             <x-slot:icon>
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"
                                         d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
                                 </svg>
                             </x-slot:icon>
-                            <div class="flex flex-wrap items-center gap-3">
+                            {{-- <div class="flex flex-wrap items-center gap-3">
                                 <span class="font-mono text-sm font-semibold">{{ $student->qr_code ?? $student->student_number }}</span>
                                 @if ($qrCodeUrl)
                                     <img src="{{ $qrCodeUrl }}" alt="QR code" class="h-12 w-12 rounded-lg border border-surface-border dark:border-slate-700">
                                 @endif
-                            </div>
+                            </div> --}}
                         </x-student-profile-field>
                     </dl>
 

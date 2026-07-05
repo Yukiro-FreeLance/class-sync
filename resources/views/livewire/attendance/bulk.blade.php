@@ -27,7 +27,9 @@
 
     <div class="panel mb-5">
         <x-attendance-class-filters :departments="$departments" :grades="$grades" :sections="$sections" :class-schedules="$classSchedules"
-            :selected-schedule="$selectedSchedule" :weekday-label="$weekdayLabel" :department-id="$department" :grade-id="$grade" :section-id="$section" :labeled="true"
+            :selected-schedule="$selectedSchedule" :weekday-label="$weekdayLabel" :strands="$strands"
+            :show-strand-filter="$showStrandFilter" :department-id="$department" :grade-id="$grade"
+            :strand-id="$strand" :section-id="$section" :labeled="true"
             :compact-hint="!($section && $classScheduleId)" />
     </div>
 
@@ -53,7 +55,7 @@
                             </span>
                             @if ($selectedSection)
                                 <span class="opacity-60">·</span>
-                                <span>{{ $selectedSection->gradeLevel?->name }} {{ $selectedSection->name }}</span>
+                                <span>{{ $selectedSection->display_label }}</span>
                             @endif
                         </div>
                     </div>

@@ -202,7 +202,7 @@ class Bulk extends Component
         }
 
         $selectedSection = $this->section
-            ? Section::query()->with(['gradeLevel.department', 'academicYear', 'adviser'])->find($this->section)
+            ? Section::query()->with(['gradeLevel.department', 'course', 'academicYear', 'adviser'])->find($this->section)
             : null;
 
         return view('livewire.attendance.bulk', array_merge($filterData, [

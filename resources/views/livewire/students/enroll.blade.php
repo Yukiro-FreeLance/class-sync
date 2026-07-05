@@ -47,6 +47,19 @@
                     <x-input-error :messages="$errors->get('grade_level_id')" class="mt-1" />
                 </div>
 
+                @if ($showCourseField)
+                    <div>
+                        <x-input-label for="strand_id" value="Strand filter" />
+                        <select wire:model.live="strand_id" id="strand_id" class="mt-1 input-field" @disabled(!$grade_level_id)>
+                            <option value="">All strands</option>
+                            @foreach ($strands as $strand)
+                                <option value="{{ $strand->id }}">{{ $strand->code }} — {{ $strand->name }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-slate-500 mt-1">Optional. Narrow the section list for Senior High.</p>
+                    </div>
+                @endif
+
                 <div>
                     <x-input-label for="section_id" value="Section" />
                     <select wire:model.live="section_id" id="section_id" class="mt-1 input-field" @disabled(!$grade_level_id)>

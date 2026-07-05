@@ -25,7 +25,11 @@
     </div>
 
     <div class="panel mb-5">
-        <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div @class([
+            'grid sm:grid-cols-2 gap-3',
+            'lg:grid-cols-6' => $showStrandFilter,
+            'lg:grid-cols-5' => !$showStrandFilter,
+        ])>
             <div>
                 <label class="text-[11px] font-medium text-slate-500 mb-1 block">Academic Year</label>
                 <select wire:model.live="academicYearId" class="select-field">
@@ -52,12 +56,25 @@
                     @endforeach
                 </select>
             </div>
+            @if ($showStrandFilter)
+                <div>
+                    <label class="text-[11px] font-medium text-slate-500 mb-1 block">Strand</label>
+                    <select wire:model.live="strand" class="select-field" {{ $grade ? '' : 'disabled' }}>
+                        <option value="">All strands</option>
+                        @foreach ($strands as $strandOption)
+                            <option value="{{ $strandOption->id }}">
+                                {{ $strandOption->code }} — {{ $strandOption->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             <div>
                 <label class="text-[11px] font-medium text-slate-500 mb-1 block">Section</label>
                 <select wire:model.live="section" class="select-field" {{ $grade ? '' : 'disabled' }}>
                     <option value="">Select section</option>
                     @foreach ($sections as $s)
-                        <option value="{{ $s->id }}">{{ $s->name }}</option>
+                        <option value="{{ $s->id }}">{{ $s->display_label }}</option>
                     @endforeach
                 </select>
             </div>
@@ -71,7 +88,7 @@
                 </select>
             </div>
             @if ($mode === 'section')
-                <div>
+                <div @class(['sm:col-span-2' => !$showStrandFilter, 'lg:col-span-2' => $showStrandFilter])>
                     <label class="text-[11px] font-medium text-slate-500 mb-1 block">Show students</label>
                     <select wire:model.live="studentScope" class="select-field" {{ $grade ? '' : 'disabled' }}>
                         <option value="grade">All in grade (needs enrollment)</option>
@@ -91,9 +108,14 @@
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">Target Section</p>
                         <h2 class="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
-                            {{ $selectedSection->gradeLevel?->name }} · {{ $selectedSection->name }}
+                            {{ $selectedSection->display_label }}
                         </h2>
                         <p class="text-xs text-slate-500 mt-1">{{ $selectedSection->gradeLevel?->department?->name }}</p>
+                        @if ($selectedSection->course)
+                            <p class="text-xs text-purple-600 dark:text-purple-300 mt-0.5">
+                                {{ $selectedSection->course->code }} — {{ $selectedSection->course->name }}
+                            </p>
+                        @endif
                     </div>
 
                     @if ($mode === 'section')
@@ -230,7 +252,7 @@
                         </div>
                         <div class="text-right shrink-0">
                             @if ($student->section)
-                                <p class="text-xs text-slate-600 dark:text-slate-300">{{ $student->section->name }}</p>
+                                <p class="text-xs text-slate-600 dark:text-slate-300">{{ $student->section->display_label }}</p>
                             @else
                                 <p class="text-xs text-amber-600">No section</p>
                             @endif

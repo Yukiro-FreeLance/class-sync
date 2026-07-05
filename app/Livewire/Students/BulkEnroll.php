@@ -6,6 +6,7 @@ use App\DTOs\Students\BulkEnrollmentResult;
 use App\Enums\EnrollmentStatus;
 use App\Enums\Semester;
 use App\Models\AcademicYear;
+use App\Models\Course;
 use App\Models\Department;
 use App\Models\GradeLevel;
 use App\Models\Section;
@@ -33,6 +34,9 @@ class BulkEnroll extends Component
 
     #[Url]
     public string $grade = '';
+
+    #[Url]
+    public string $strand = '';
 
     #[Url]
     public string $section = '';
@@ -78,10 +82,15 @@ class BulkEnroll extends Component
 
     public function updatedDepartment(): void
     {
-        $this->reset(['grade', 'section', 'selectedStudentIds', 'selectedSubjectIds']);
+        $this->reset(['grade', 'strand', 'section', 'selectedStudentIds', 'selectedSubjectIds']);
     }
 
     public function updatedGrade(): void
+    {
+        $this->reset(['strand', 'section', 'selectedStudentIds', 'selectedSubjectIds']);
+    }
+
+    public function updatedStrand(): void
     {
         $this->reset(['section', 'selectedStudentIds', 'selectedSubjectIds']);
     }
@@ -260,7 +269,7 @@ class BulkEnroll extends Component
         }
 
         $query = Student::query()
-            ->with(['gradeLevel', 'section'])
+            ->with(['gradeLevel', 'section.course'])
             ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
             ->when($this->department, fn ($q) => $q->whereHas(
                 'gradeLevel',
@@ -342,7 +351,7 @@ class BulkEnroll extends Component
         $students = $this->filteredStudents();
         $subjectGroups = $this->subjectGroups();
         $selectedSection = $this->section
-            ? Section::query()->with('gradeLevel.department')->find($this->section)
+            ? Section::query()->with(['gradeLevel.department', 'course'])->find($this->section)
             : null;
 
         return view('livewire.students.bulk-enroll', [
@@ -353,12 +362,24 @@ class BulkEnroll extends Component
                 ->when($this->department, fn ($q) => $q->where('department_id', $this->department))
                 ->ordered()
                 ->get(),
-            'sections' => Section::query()
+            'strands' => Course::query()
                 ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
+                ->when($this->department && ! $this->grade, function ($q) {
+                    $q->whereHas('gradeLevel', fn ($g) => $g->where('department_id', $this->department));
+                })
+                ->orderBy('grade_level_id')
+                ->orderBy('code')
+                ->get(),
+            'showStrandFilter' => $this->isSeniorHighFilterContext(),
+            'sections' => Section::query()
+                ->with(['course', 'gradeLevel'])
+                ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
+                ->when($this->strand, fn ($q) => $q->where('course_id', $this->strand))
                 ->when($this->academicYearId, fn ($q) => $q->where(function ($query) {
                     $query->where('academic_year_id', $this->academicYearId)
                         ->orWhereNull('academic_year_id');
                 }))
+                ->orderBy('course_id')
                 ->orderBy('name')
                 ->get(),
             'academicYears' => AcademicYear::query()->orderByDesc('start_date')->get(),
@@ -374,5 +395,24 @@ class BulkEnroll extends Component
                 ))
                 : 0,
         ]);
+    }
+
+    protected function isSeniorHighFilterContext(): bool
+    {
+        if ($this->department) {
+            return Department::query()
+                ->whereKey($this->department)
+                ->where('code', 'shs')
+                ->exists();
+        }
+
+        if ($this->grade) {
+            return GradeLevel::query()
+                ->whereKey($this->grade)
+                ->whereHas('department', fn ($q) => $q->where('code', 'shs'))
+                ->exists();
+        }
+
+        return false;
     }
 }
