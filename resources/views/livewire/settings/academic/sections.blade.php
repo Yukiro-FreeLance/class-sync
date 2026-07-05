@@ -25,7 +25,9 @@
             <select wire:model.live="gradeLevelId" class="select-field">
                 <option value="">Grade level</option>
                 @foreach ($grades as $g)
-                    <option value="{{ $g->id }}">{{ $g->department?->code ? strtoupper($g->department->code).' — ' : '' }}{{ $g->name }}</option>
+                    <option value="{{ $g->id }}">
+                        {{ $g->department?->code ? strtoupper($g->department->code) . ' — ' : '' }}{{ $g->name }}
+                    </option>
                 @endforeach
             </select>
             <x-input-error :messages="$errors->get('gradeLevelId')" class="mt-1" />
@@ -43,7 +45,8 @@
                     @if ($strands->isEmpty())
                         <p class="text-xs text-amber-600 mt-1">
                             No strands for this grade.
-                            <a href="{{ route('settings.academic.strands') }}" wire:navigate class="underline">Add strands</a> first.
+                            <a href="{{ route('settings.academic.strands') }}" wire:navigate class="underline">Add
+                                strands</a> first.
                         </p>
                     @endif
                 </div>
@@ -91,7 +94,8 @@
                             <td>{{ $section->gradeLevel?->name }}</td>
                             <td>
                                 @if ($section->course)
-                                    <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
+                                    <span
+                                        class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
                                         {{ $section->course->code }}
                                     </span>
                                 @else
@@ -101,14 +105,18 @@
                             <td class="font-medium">{{ $section->display_label }}</td>
                             <td>{{ $section->academicYear?->name ?? '—' }}</td>
                             <td>{{ $section->adviser?->full_name ?? '—' }}</td>
-                            <td>{{ $section->assignedRoom?->display_name ?? $section->room ?? '—' }}</td>
+                            <td>{{ $section->assignedRoom?->display_name ?? ($section->room ?? '—') }}</td>
                             <td class="text-right whitespace-nowrap">
-                                <button wire:click="edit({{ $section->id }})" class="text-green-700 text-sm">Edit</button>
-                                <button wire:click="delete({{ $section->id }})" wire:confirm="Delete section?" class="text-red-600 text-sm ml-2">Delete</button>
+                                <button wire:click="edit({{ $section->id }})"
+                                    class="text-green-700 text-sm">Edit</button>
+                                <button wire:click="delete({{ $section->id }})" wire:confirm="Delete section?"
+                                    class="text-red-600 text-sm ml-2">Delete</button>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center py-8 text-slate-500">No sections found.</td></tr>
+                        <tr>
+                            <td colspan="7" class="text-center py-8 text-slate-500">No sections found.</td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>

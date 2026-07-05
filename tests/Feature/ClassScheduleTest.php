@@ -67,18 +67,26 @@ class ClassScheduleTest extends TestCase
         ]);
     }
 
-    public function test_can_save_schedule_for_multiple_days_at_once(): void
+    /** @param  list<DayOfWeek>  $enabledDays */
+    protected function daySlotsFor(array $enabledDays): array
     {
+        $enabled = array_map(fn (DayOfWeek $day) => $day->value, $enabledDays);
         $daySlots = [];
 
         foreach (DayOfWeek::cases() as $day) {
             $daySlots[$day->value] = [
-                'enabled' => in_array($day, [DayOfWeek::Monday, DayOfWeek::Wednesday, DayOfWeek::Friday], true),
-                'starts_at' => '08:00',
-                'ends_at' => '09:00',
+                'enabled' => in_array($day->value, $enabled, true),
+                'times' => in_array($day->value, $enabled, true)
+                    ? [['starts_at' => '08:00', 'ends_at' => '09:00']]
+                    : [],
             ];
         }
 
+        return $daySlots;
+    }
+
+    public function test_can_save_schedule_for_multiple_days_at_once(): void
+    {
         Livewire::actingAs($this->admin)
             ->test(Schedules::class)
             ->set('academicYearId', $this->academicYear->id)
@@ -86,7 +94,11 @@ class ClassScheduleTest extends TestCase
             ->set('subjectId', $this->subject->id)
             ->set('teacherId', $this->teacher->id)
             ->set('semester', Semester::First->value)
-            ->set('daySlots', $daySlots)
+            ->set('daySlots', $this->daySlotsFor([
+                DayOfWeek::Monday,
+                DayOfWeek::Wednesday,
+                DayOfWeek::Friday,
+            ]))
             ->call('save')
             ->assertHasNoErrors();
 
@@ -102,6 +114,37 @@ class ClassScheduleTest extends TestCase
         ]);
     }
 
+    public function test_can_save_multiple_time_slots_on_same_day(): void
+    {
+        Livewire::actingAs($this->admin)
+            ->test(Schedules::class)
+            ->set('academicYearId', $this->academicYear->id)
+            ->set('sectionId', $this->section->id)
+            ->set('subjectId', $this->subject->id)
+            ->set('teacherId', $this->teacher->id)
+            ->set('semester', Semester::First->value)
+            ->set('daySlots', $this->daySlotsFor([DayOfWeek::Monday]))
+            ->set('sharedTimeSlots', [
+                ['starts_at' => '08:00', 'ends_at' => '09:00'],
+                ['starts_at' => '13:00', 'ends_at' => '14:00'],
+            ])
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseCount('class_schedules', 2);
+
+        $schedules = ClassSchedule::query()
+            ->where('day_of_week', DayOfWeek::Monday)
+            ->orderBy('starts_at')
+            ->get();
+
+        $this->assertCount(2, $schedules);
+        $this->assertStringStartsWith('08:00', (string) $schedules[0]->starts_at);
+        $this->assertStringStartsWith('09:00', (string) $schedules[0]->ends_at);
+        $this->assertStringStartsWith('13:00', (string) $schedules[1]->starts_at);
+        $this->assertStringStartsWith('14:00', (string) $schedules[1]->ends_at);
+    }
+
     public function test_select_weekdays_enables_monday_through_friday(): void
     {
         Livewire::actingAs($this->admin)
@@ -112,8 +155,8 @@ class ClassScheduleTest extends TestCase
             ->assertSet('daySlots.1.enabled', true)
             ->assertSet('daySlots.5.enabled', true)
             ->assertSet('daySlots.6.enabled', false)
-            ->assertSet('daySlots.1.starts_at', '10:00')
-            ->assertSet('daySlots.1.ends_at', '11:00');
+            ->assertSet('daySlots.1.times.0.starts_at', '10:00')
+            ->assertSet('daySlots.1.times.0.ends_at', '11:00');
     }
 
     public function test_save_requires_at_least_one_day(): void
@@ -129,7 +172,7 @@ class ClassScheduleTest extends TestCase
             ->assertHasErrors(['daySlots']);
     }
 
-    public function test_update_or_create_replaces_existing_day_entry(): void
+    public function test_save_adds_additional_time_slot_on_same_day(): void
     {
         ClassSchedule::query()->create([
             'academic_year_id' => $this->academicYear->id,
@@ -142,16 +185,6 @@ class ClassScheduleTest extends TestCase
             'ends_at' => '08:00:00',
         ]);
 
-        $daySlots = [];
-
-        foreach (DayOfWeek::cases() as $day) {
-            $daySlots[$day->value] = [
-                'enabled' => $day === DayOfWeek::Tuesday,
-                'starts_at' => '09:30',
-                'ends_at' => '10:30',
-            ];
-        }
-
         Livewire::actingAs($this->admin)
             ->test(Schedules::class)
             ->set('academicYearId', $this->academicYear->id)
@@ -159,17 +192,23 @@ class ClassScheduleTest extends TestCase
             ->set('subjectId', $this->subject->id)
             ->set('teacherId', $this->teacher->id)
             ->set('semester', Semester::First->value)
-            ->set('daySlots', $daySlots)
+            ->set('daySlots', $this->daySlotsFor([DayOfWeek::Tuesday]))
+            ->set('sharedTimeSlots', [
+                ['starts_at' => '09:30', 'ends_at' => '10:30'],
+            ])
             ->call('save')
             ->assertHasNoErrors();
 
-        $this->assertDatabaseCount('class_schedules', 1);
+        $this->assertDatabaseCount('class_schedules', 2);
 
-        $schedule = ClassSchedule::query()->first();
+        $newSlot = ClassSchedule::query()
+            ->where('day_of_week', DayOfWeek::Tuesday)
+            ->orderByDesc('starts_at')
+            ->first();
 
-        $this->assertSame(DayOfWeek::Tuesday->value, $schedule->day_of_week->value);
-        $this->assertStringStartsWith('09:30', (string) $schedule->starts_at);
-        $this->assertStringStartsWith('10:30', (string) $schedule->ends_at);
+        $this->assertNotNull($newSlot);
+        $this->assertStringStartsWith('09:30', (string) $newSlot->starts_at);
+        $this->assertStringStartsWith('10:30', (string) $newSlot->ends_at);
     }
 
     public function test_save_blocks_section_time_conflict(): void
@@ -192,16 +231,6 @@ class ClassScheduleTest extends TestCase
             'ends_at' => '09:00:00',
         ]);
 
-        $daySlots = [];
-
-        foreach (DayOfWeek::cases() as $day) {
-            $daySlots[$day->value] = [
-                'enabled' => $day === DayOfWeek::Sunday,
-                'starts_at' => '08:00',
-                'ends_at' => '09:00',
-            ];
-        }
-
         Livewire::actingAs($this->admin)
             ->test(Schedules::class)
             ->set('academicYearId', $this->academicYear->id)
@@ -209,7 +238,7 @@ class ClassScheduleTest extends TestCase
             ->set('subjectId', $this->subject->id)
             ->set('teacherId', $this->teacher->id)
             ->set('semester', Semester::First->value)
-            ->set('daySlots', $daySlots)
+            ->set('daySlots', $this->daySlotsFor([DayOfWeek::Sunday]))
             ->call('save')
             ->assertHasErrors(['conflicts']);
 
@@ -236,16 +265,6 @@ class ClassScheduleTest extends TestCase
             'ends_at' => '09:00:00',
         ]);
 
-        $daySlots = [];
-
-        foreach (DayOfWeek::cases() as $day) {
-            $daySlots[$day->value] = [
-                'enabled' => $day === DayOfWeek::Sunday,
-                'starts_at' => '09:00',
-                'ends_at' => '10:00',
-            ];
-        }
-
         Livewire::actingAs($this->admin)
             ->test(Schedules::class)
             ->set('academicYearId', $this->academicYear->id)
@@ -253,7 +272,10 @@ class ClassScheduleTest extends TestCase
             ->set('subjectId', $this->subject->id)
             ->set('teacherId', $this->teacher->id)
             ->set('semester', Semester::First->value)
-            ->set('daySlots', $daySlots)
+            ->set('daySlots', $this->daySlotsFor([DayOfWeek::Sunday]))
+            ->set('sharedTimeSlots', [
+                ['starts_at' => '09:00', 'ends_at' => '10:00'],
+            ])
             ->call('save')
             ->assertHasNoErrors();
 
@@ -329,7 +351,7 @@ class ClassScheduleTest extends TestCase
             ->assertSet('daySlots.1.enabled', false);
     }
 
-    public function test_schedule_overview_renders_stats_and_daily_sections(): void
+    public function test_schedule_overview_renders_table_and_stats(): void
     {
         ClassSchedule::query()->create([
             'academic_year_id' => $this->academicYear->id,
@@ -360,10 +382,34 @@ class ClassScheduleTest extends TestCase
             ->assertSee('Schedule Overview')
             ->assertSee('Total Classes')
             ->assertSee('Weekly Hours')
-            ->assertSee('2')
-            ->assertSee('Monday')
-            ->assertSee('Tuesday')
-            ->assertSee('Add Class');
+            ->assertSee('Subject')
+            ->assertSee('Teacher')
+            ->assertSee('Action')
+            ->assertSee('MATH7')
+            ->assertSee('Mon–Tue');
+    }
+
+    public function test_schedule_overview_groups_identical_entries_by_day(): void
+    {
+        foreach ([DayOfWeek::Monday, DayOfWeek::Tuesday, DayOfWeek::Wednesday] as $day) {
+            ClassSchedule::query()->create([
+                'academic_year_id' => $this->academicYear->id,
+                'section_id' => $this->section->id,
+                'subject_id' => $this->subject->id,
+                'teacher_id' => $this->teacher->id,
+                'semester' => Semester::First,
+                'day_of_week' => $day,
+                'starts_at' => '08:00:00',
+                'ends_at' => '09:00:00',
+            ]);
+        }
+
+        Livewire::actingAs($this->admin)
+            ->test(Schedules::class)
+            ->set('academicYearId', $this->academicYear->id)
+            ->set('semester', Semester::First->value)
+            ->assertSee('Mon–Wed')
+            ->assertSee('Manage (3)');
     }
 
     public function test_copy_last_schedule_populates_form_from_latest_entry(): void

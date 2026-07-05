@@ -94,8 +94,41 @@ class ClassScheduleConflictService
         return $this->uniqueConflicts($conflicts);
     }
 
+    public function findConflictsForFormEntries(
+        int $academicYearId,
+        int $sectionId,
+        int $subjectId,
+        int $teacherId,
+        ?int $roomId,
+        string $semester,
+        iterable $entries,
+        ?int $ignoreScheduleId = null,
+    ): array {
+        $conflicts = [];
+
+        foreach ($entries as $entry) {
+            $conflicts = array_merge(
+                $conflicts,
+                $this->findConflictsForSlot(
+                    $academicYearId,
+                    $sectionId,
+                    $subjectId,
+                    $teacherId,
+                    $roomId,
+                    $semester,
+                    (int) $entry['day'],
+                    $entry['starts_at'],
+                    $entry['ends_at'],
+                    $ignoreScheduleId,
+                ),
+            );
+        }
+
+        return $this->uniqueConflicts($conflicts);
+    }
+
     /**
-     * @param  iterable<int, array{enabled: bool, starts_at: string, ends_at: string}>  $daySlots
+     * @param  iterable<int, array{enabled: bool, starts_at?: string, ends_at?: string, times?: list<array{starts_at: string, ends_at: string}>}>  $daySlots
      * @return list<array{type: string, message: string, schedule_id: int, day: int}>
      */
     public function findConflictsForForm(
@@ -108,31 +141,44 @@ class ClassScheduleConflictService
         iterable $daySlots,
         ?int $ignoreScheduleId = null,
     ): array {
-        $conflicts = [];
+        $entries = [];
 
         foreach ($daySlots as $day => $slot) {
             if (! ($slot['enabled'] ?? false)) {
                 continue;
             }
 
-            $conflicts = array_merge(
-                $conflicts,
-                $this->findConflictsForSlot(
-                    $academicYearId,
-                    $sectionId,
-                    $subjectId,
-                    $teacherId,
-                    $roomId,
-                    $semester,
-                    (int) $day,
-                    $slot['starts_at'],
-                    $slot['ends_at'],
-                    $ignoreScheduleId,
-                ),
-            );
+            if (isset($slot['times']) && is_array($slot['times'])) {
+                foreach ($slot['times'] as $time) {
+                    $entries[] = [
+                        'day' => (int) $day,
+                        'starts_at' => $time['starts_at'],
+                        'ends_at' => $time['ends_at'],
+                    ];
+                }
+
+                continue;
+            }
+
+            if (($slot['starts_at'] ?? '') !== '' && ($slot['ends_at'] ?? '') !== '') {
+                $entries[] = [
+                    'day' => (int) $day,
+                    'starts_at' => $slot['starts_at'],
+                    'ends_at' => $slot['ends_at'],
+                ];
+            }
         }
 
-        return $this->uniqueConflicts($conflicts);
+        return $this->findConflictsForFormEntries(
+            $academicYearId,
+            $sectionId,
+            $subjectId,
+            $teacherId,
+            $roomId,
+            $semester,
+            $entries,
+            $ignoreScheduleId,
+        );
     }
 
     /**

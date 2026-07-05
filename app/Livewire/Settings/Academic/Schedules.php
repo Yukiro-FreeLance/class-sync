@@ -66,8 +66,11 @@ class Schedules extends Component
     /** @var array<int, bool> */
     public array $expandedDays = [];
 
-    /** @var array<int, array{enabled: bool, starts_at: string, ends_at: string}> */
+    /** @var array<int, array{enabled: bool, times: list<array{starts_at: string, ends_at: string}>}> */
     public array $daySlots = [];
+
+    /** @var list<array{starts_at: string, ends_at: string}> */
+    public array $sharedTimeSlots = [];
 
     public ?string $quickAddPanel = null;
 
@@ -110,6 +113,7 @@ class Schedules extends Component
             ?? AcademicYear::query()->orderByDesc('id')->value('id');
         $this->ensureValidSemester();
         $this->initializeDaySlots();
+        $this->sharedTimeSlots = [$this->defaultTimeSlot()];
         $this->expandAll();
     }
 
@@ -142,8 +146,7 @@ class Schedules extends Component
             }
 
             if ($this->daySlots[$day]['enabled'] ?? false) {
-                $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
-                $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+                $this->daySlots[$day]['times'] = [$this->defaultTimeSlot()];
             }
 
             return;
@@ -153,8 +156,9 @@ class Schedules extends Component
         $this->daySlots[$day]['enabled'] = $enabled;
 
         if ($enabled) {
-            $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
-            $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+            $this->ensureDayHasTimeSlot($day);
+        } else {
+            $this->daySlots[$day]['times'] = [];
         }
     }
 
@@ -181,8 +185,7 @@ class Schedules extends Component
     {
         $this->resetForm();
         $this->daySlots[$day]['enabled'] = true;
-        $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
-        $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+        $this->daySlots[$day]['times'] = [$this->defaultTimeSlot()];
         $this->dispatch('scroll-to-schedule-form');
     }
 
@@ -217,8 +220,10 @@ class Schedules extends Component
         }
 
         $this->daySlots[$lastSchedule->day_of_week->value]['enabled'] = true;
-        $this->daySlots[$lastSchedule->day_of_week->value]['starts_at'] = $this->defaultStartsAt;
-        $this->daySlots[$lastSchedule->day_of_week->value]['ends_at'] = $this->defaultEndsAt;
+        $this->daySlots[$lastSchedule->day_of_week->value]['times'] = [[
+            'starts_at' => $this->defaultStartsAt,
+            'ends_at' => $this->defaultEndsAt,
+        ]];
 
         $this->dispatch('toast', message: 'Last schedule copied to form.', type: 'success');
     }
@@ -369,16 +374,69 @@ class Schedules extends Component
             }
 
             if ($this->daySlots[$day]['enabled'] ?? false) {
-                $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
-                $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+                $this->ensureDayHasTimeSlot($day);
             }
 
             return;
         }
 
         if ($this->daySlots[$day]['enabled'] ?? false) {
-            $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
-            $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+            $this->ensureDayHasTimeSlot($day);
+        }
+    }
+
+    public function addSharedTimeSlot(): void
+    {
+        $this->sharedTimeSlots[] = $this->defaultTimeSlot();
+    }
+
+    public function removeSharedTimeSlot(int $index): void
+    {
+        if (count($this->sharedTimeSlots) <= 1) {
+            return;
+        }
+
+        unset($this->sharedTimeSlots[$index]);
+        $this->sharedTimeSlots = array_values($this->sharedTimeSlots);
+    }
+
+    public function addDayTimeSlot(int $day): void
+    {
+        if (! ($this->daySlots[$day]['enabled'] ?? false)) {
+            return;
+        }
+
+        $this->daySlots[$day]['times'][] = $this->defaultTimeSlot();
+    }
+
+    public function removeDayTimeSlot(int $day, int $index): void
+    {
+        if (! ($this->daySlots[$day]['enabled'] ?? false)) {
+            return;
+        }
+
+        $times = $this->daySlots[$day]['times'] ?? [];
+
+        if (count($times) <= 1) {
+            return;
+        }
+
+        unset($times[$index]);
+        $this->daySlots[$day]['times'] = array_values($times);
+    }
+
+    protected function defaultTimeSlot(): array
+    {
+        return [
+            'starts_at' => $this->defaultStartsAt,
+            'ends_at' => $this->defaultEndsAt,
+        ];
+    }
+
+    protected function ensureDayHasTimeSlot(int $day): void
+    {
+        if (($this->daySlots[$day]['times'] ?? []) === []) {
+            $this->daySlots[$day]['times'] = [$this->defaultTimeSlot()];
         }
     }
 
@@ -389,12 +447,12 @@ class Schedules extends Component
 
             $this->daySlots[$day->value] = [
                 'enabled' => $isActiveDay,
-                'starts_at' => $isActiveDay
-                    ? substr((string) $schedule->starts_at, 0, 5)
-                    : $this->defaultStartsAt,
-                'ends_at' => $isActiveDay
-                    ? substr((string) $schedule->ends_at, 0, 5)
-                    : $this->defaultEndsAt,
+                'times' => $isActiveDay
+                    ? [[
+                        'starts_at' => substr((string) $schedule->starts_at, 0, 5),
+                        'ends_at' => substr((string) $schedule->ends_at, 0, 5),
+                    ]]
+                    : [],
             ];
         }
     }
@@ -410,8 +468,7 @@ class Schedules extends Component
             $this->daySlots[$day]['enabled'] = $enabled;
 
             if ($enabled) {
-                $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
-                $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+                $this->ensureDayHasTimeSlot($day);
             }
         }
     }
@@ -429,10 +486,21 @@ class Schedules extends Component
 
     public function applyDefaultTimes(): void
     {
+        if ($this->timeMode === 'same') {
+            if ($this->sharedTimeSlots === []) {
+                $this->sharedTimeSlots = [$this->defaultTimeSlot()];
+            } else {
+                $this->sharedTimeSlots[0]['starts_at'] = $this->defaultStartsAt;
+                $this->sharedTimeSlots[0]['ends_at'] = $this->defaultEndsAt;
+            }
+
+            return;
+        }
+
         foreach ($this->daySlots as $day => $slot) {
-            if ($slot['enabled']) {
-                $this->daySlots[$day]['starts_at'] = $this->defaultStartsAt;
-                $this->daySlots[$day]['ends_at'] = $this->defaultEndsAt;
+            if ($slot['enabled'] && ($slot['times'][0] ?? null)) {
+                $this->daySlots[$day]['times'][0]['starts_at'] = $this->defaultStartsAt;
+                $this->daySlots[$day]['times'][0]['ends_at'] = $this->defaultEndsAt;
             }
         }
     }
@@ -451,6 +519,10 @@ class Schedules extends Component
         $this->defaultStartsAt = substr((string) $schedule->starts_at, 0, 5);
         $this->defaultEndsAt = substr((string) $schedule->ends_at, 0, 5);
         $this->timeMode = 'same';
+        $this->sharedTimeSlots = [[
+            'starts_at' => $this->defaultStartsAt,
+            'ends_at' => $this->defaultEndsAt,
+        ]];
         $this->initializeDaySlots($schedule);
         $this->dispatch('scroll-to-schedule-form');
     }
@@ -460,6 +532,7 @@ class Schedules extends Component
         $this->reset(['editingId', 'sectionId', 'formCourseId', 'subjectId', 'teacherId', 'roomId']);
         $this->defaultStartsAt = '08:00';
         $this->defaultEndsAt = '09:00';
+        $this->sharedTimeSlots = [$this->defaultTimeSlot()];
         $this->initializeDaySlots();
     }
 
@@ -477,14 +550,14 @@ class Schedules extends Component
             return [];
         }
 
-        return $this->conflictService()->findConflictsForForm(
+        return $this->conflictService()->findConflictsForFormEntries(
             $this->academicYearId,
             $this->sectionId,
             $this->subjectId,
             $this->teacherId,
             $this->roomId,
             $this->semester,
-            $this->daySlots,
+            $this->enabledTimeEntries()->all(),
             $this->editingId,
         );
     }
@@ -506,19 +579,22 @@ class Schedules extends Component
             'daySlots' => ['required', 'array'],
         ]);
 
-        $enabledDays = $this->enabledDaySlots();
+        $timeEntries = $this->enabledTimeEntries();
 
-        if ($enabledDays->isEmpty()) {
-            $this->addError('daySlots', 'Select at least one day.');
+        if ($timeEntries->isEmpty()) {
+            $this->addError('daySlots', 'Select at least one day and time slot.');
 
             return;
         }
 
-        foreach ($enabledDays as $day => $slot) {
-            $this->validate([
-                "daySlots.{$day}.starts_at" => ['required', 'date_format:H:i'],
-                "daySlots.{$day}.ends_at" => ['required', 'date_format:H:i', 'after:daySlots.'.$day.'.starts_at'],
-            ]);
+        foreach ($timeEntries as $entry) {
+            validator(
+                ['starts_at' => $entry['starts_at'], 'ends_at' => $entry['ends_at']],
+                [
+                    'starts_at' => ['required', 'date_format:H:i'],
+                    'ends_at' => ['required', 'date_format:H:i', 'after:starts_at'],
+                ],
+            )->validate();
         }
 
         $conflicts = $this->previewFormConflicts();
@@ -539,33 +615,24 @@ class Schedules extends Component
         ];
 
         if ($this->editingId) {
-            $day = $enabledDays->keys()->first();
-            $slot = $enabledDays->first();
+            $entry = $timeEntries->first();
 
             ClassSchedule::query()->whereKey($this->editingId)->update(array_merge($payload, [
-                'day_of_week' => $day,
-                'starts_at' => $slot['starts_at'],
-                'ends_at' => $slot['ends_at'],
+                'day_of_week' => $entry['day'],
+                'starts_at' => $entry['starts_at'],
+                'ends_at' => $entry['ends_at'],
             ]));
 
             $message = 'Schedule updated.';
         } else {
             $saved = 0;
 
-            foreach ($enabledDays as $day => $slot) {
-                ClassSchedule::query()->updateOrCreate(
-                    [
-                        'academic_year_id' => $this->academicYearId,
-                        'section_id' => $this->sectionId,
-                        'subject_id' => $this->subjectId,
-                        'semester' => $this->semester,
-                        'day_of_week' => $day,
-                    ],
-                    array_merge($payload, [
-                        'starts_at' => $slot['starts_at'],
-                        'ends_at' => $slot['ends_at'],
-                    ]),
-                );
+            foreach ($timeEntries as $entry) {
+                ClassSchedule::query()->create(array_merge($payload, [
+                    'day_of_week' => $entry['day'],
+                    'starts_at' => $entry['starts_at'],
+                    'ends_at' => $entry['ends_at'],
+                ]));
 
                 $saved++;
             }
@@ -580,8 +647,54 @@ class Schedules extends Component
     }
 
     /**
-     * @return Collection<int, array{enabled: bool, starts_at: string, ends_at: string}>
+     * @return Collection<int, array{day: int, starts_at: string, ends_at: string}>
      */
+    protected function enabledTimeEntries(): Collection
+    {
+        $entries = collect();
+
+        if ($this->timeMode === 'same') {
+            $times = collect($this->sharedTimeSlots)
+                ->filter(fn (array $time) => ($time['starts_at'] ?? '') !== '' && ($time['ends_at'] ?? '') !== '');
+
+            foreach ($this->daySlots as $day => $slot) {
+                if (! ($slot['enabled'] ?? false)) {
+                    continue;
+                }
+
+                foreach ($times as $time) {
+                    $entries->push([
+                        'day' => (int) $day,
+                        'starts_at' => $time['starts_at'],
+                        'ends_at' => $time['ends_at'],
+                    ]);
+                }
+            }
+
+            return $entries;
+        }
+
+        foreach ($this->daySlots as $day => $slot) {
+            if (! ($slot['enabled'] ?? false)) {
+                continue;
+            }
+
+            foreach ($slot['times'] ?? [] as $time) {
+                if (($time['starts_at'] ?? '') === '' || ($time['ends_at'] ?? '') === '') {
+                    continue;
+                }
+
+                $entries->push([
+                    'day' => (int) $day,
+                    'starts_at' => $time['starts_at'],
+                    'ends_at' => $time['ends_at'],
+                ]);
+            }
+        }
+
+        return $entries;
+    }
+
     protected function enabledDaySlots(): Collection
     {
         return collect($this->daySlots)
@@ -592,6 +705,140 @@ class Schedules extends Component
     {
         ClassSchedule::query()->findOrFail($id)->delete();
         $this->dispatch('toast', message: 'Schedule removed.', type: 'success');
+    }
+
+    /** @param  list<int>  $ids */
+    public function deleteGroup(array $ids): void
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+
+        if ($ids === []) {
+            return;
+        }
+
+        $count = ClassSchedule::query()->whereIn('id', $ids)->delete();
+
+        $message = $count === 1
+            ? 'Schedule removed.'
+            : "{$count} schedule entries removed.";
+
+        $this->dispatch('toast', message: $message, type: 'success');
+    }
+
+    /**
+     * @param  Collection<int, ClassSchedule>  $schedules
+     * @param  array<int, true>  $conflictScheduleIds
+     * @param  array<int, list<string>>  $conflictDetails
+     * @return Collection<int, array{
+     *     schedule: ClassSchedule,
+     *     schedules: Collection<int, ClassSchedule>,
+     *     schedule_ids: list<int>,
+     *     day_values: list<int>,
+     *     days_label: string,
+     *     count: int,
+     *     has_conflict: bool,
+     *     conflicts: list<string>,
+     *     is_editing: bool
+     * }>
+     */
+    protected function buildScheduleGroups(
+        Collection $schedules,
+        array $conflictScheduleIds,
+        array $conflictDetails,
+    ): Collection {
+        return $schedules
+            ->groupBy(fn (ClassSchedule $schedule) => implode('|', [
+                $schedule->subject_id,
+                $schedule->section_id,
+                $schedule->teacher_id,
+                $schedule->room_id ?? 'none',
+                substr((string) $schedule->starts_at, 0, 5),
+                substr((string) $schedule->ends_at, 0, 5),
+            ]))
+            ->map(function (Collection $group) use ($conflictScheduleIds, $conflictDetails) {
+                $sorted = $group
+                    ->sortBy(fn (ClassSchedule $schedule) => $schedule->day_of_week->value)
+                    ->values();
+
+                $representative = $sorted->first();
+                $dayValues = $sorted
+                    ->pluck('day_of_week')
+                    ->map(fn (DayOfWeek $day) => $day->value)
+                    ->all();
+
+                $scheduleIds = $sorted->pluck('id')->all();
+                $conflicts = [];
+
+                foreach ($scheduleIds as $id) {
+                    if (isset($conflictScheduleIds[$id])) {
+                        $conflicts = array_merge($conflicts, $conflictDetails[$id] ?? []);
+                    }
+                }
+
+                return [
+                    'schedule' => $representative,
+                    'schedules' => $sorted,
+                    'schedule_ids' => $scheduleIds,
+                    'day_values' => $dayValues,
+                    'days_label' => $this->formatGroupedDaysLabel($dayValues),
+                    'count' => $sorted->count(),
+                    'has_conflict' => $conflicts !== [],
+                    'conflicts' => array_values(array_unique($conflicts)),
+                    'is_editing' => $sorted->contains(fn (ClassSchedule $schedule) => $schedule->id === $this->editingId),
+                ];
+            })
+            ->sortBy([
+                fn (array $group) => $group['schedule']->subject?->code ?? '',
+                fn (array $group) => substr((string) $group['schedule']->starts_at, 0, 5),
+                fn (array $group) => min($group['day_values']),
+            ])
+            ->values();
+    }
+
+    /** @param  list<int>  $dayValues */
+    protected function formatGroupedDaysLabel(array $dayValues): string
+    {
+        sort($dayValues);
+
+        if ($dayValues === []) {
+            return '';
+        }
+
+        if (count($dayValues) === 1) {
+            return DayOfWeek::from($dayValues[0])->label();
+        }
+
+        $ranges = [];
+        $rangeStart = $dayValues[0];
+        $previous = $dayValues[0];
+
+        for ($index = 1; $index < count($dayValues); $index++) {
+            $current = $dayValues[$index];
+
+            if ($current === $previous + 1) {
+                $previous = $current;
+
+                continue;
+            }
+
+            $ranges[] = [$rangeStart, $previous];
+            $rangeStart = $current;
+            $previous = $current;
+        }
+
+        $ranges[] = [$rangeStart, $previous];
+
+        $parts = [];
+
+        foreach ($ranges as [$start, $end]) {
+            if ($start === $end) {
+                $parts[] = DayOfWeek::from($start)->shortLabel();
+            } else {
+                $parts[] = DayOfWeek::from($start)->shortLabel().'–'.DayOfWeek::from($end)->shortLabel();
+            }
+        }
+
+        return implode(', ', $parts);
     }
 
     public function openQuickAdd(string $panel): void
@@ -848,6 +1095,7 @@ class Schedules extends Component
 
         $formConflicts = $this->previewFormConflicts();
         $schedulesByDay = $schedules->groupBy(fn (ClassSchedule $schedule) => $schedule->day_of_week->value);
+        $scheduleGroups = $this->buildScheduleGroups($schedules, $conflictScheduleIds, $conflictDetails);
         $stats = $this->buildScheduleStats($schedules);
         $daySummaries = $this->buildDaySummaries($schedulesByDay);
 
@@ -867,10 +1115,11 @@ class Schedules extends Component
             'teachers' => User::query()->assignableAsTeacher()->active()->orderBy('last_name')->get(),
             'rooms' => Room::query()->active()->orderBy('name')->get(),
             'schedules' => $schedules,
+            'scheduleGroups' => $scheduleGroups,
             'days' => DayOfWeek::options(),
             'semesters' => $this->availableSemesterOptions(),
             'formSemesters' => $this->formSemesterOptions(),
-            'selectedDayCount' => $this->enabledDaySlots()->count(),
+            'selectedDayCount' => $this->enabledTimeEntries()->count(),
             'formConflicts' => $formConflicts,
             'conflictScheduleIds' => $conflictScheduleIds,
             'conflictDetails' => $conflictDetails,
