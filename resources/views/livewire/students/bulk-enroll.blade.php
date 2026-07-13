@@ -247,7 +247,7 @@
                             {{ strtoupper(mb_substr($student->first_name, 0, 1).mb_substr($student->last_name, 0, 1)) }}
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-slate-900 dark:text-white truncate">{{ $student->full_name }}</p>
+                            <p class="text-sm font-medium text-slate-900 dark:text-white truncate">{{ $student->list_name }}</p>
                             <p class="text-[11px] text-slate-500 font-mono">{{ $student->student_number }}</p>
                         </div>
                         <div class="text-right shrink-0">

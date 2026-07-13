@@ -110,7 +110,7 @@
                                     <tr>
                                         <td class="text-center text-slate-500">{{ $index + 1 }}</td>
                                         <td class="font-mono text-xs">{{ $student->student_number }}</td>
-                                        <td>{{ \App\Services\Students\StudentListService::formatName($student, 'formal') }}</td>
+                                        <td>{{ $student->list_name }}</td>
                                         <td class="text-center">{{ \App\Services\Students\StudentListService::formatGender($student->gender) }}</td>
                                         <td>{{ $student->birth_date?->format('M d, Y') ?? '—' }}</td>
                                         <td>{{ $student->section?->name ?? '—' }}</td>

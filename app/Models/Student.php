@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\StudentStatus;
+use App\Services\Students\StudentListService;
 use Database\Factories\StudentFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -123,6 +124,11 @@ class Student extends Model
         }
 
         return $name;
+    }
+
+    public function getListNameAttribute(): string
+    {
+        return StudentListService::formatName($this, 'lastname_first');
     }
 
     public function scopeActive(Builder $query): Builder

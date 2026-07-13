@@ -78,6 +78,7 @@ class Show extends Component
             ->when($this->status, fn ($q) => $q->where('status', $this->status))
             ->orderBy('last_name')
             ->orderBy('first_name')
+            ->orderBy('middle_name')
             ->paginate(20);
 
         return view('livewire.teachers.show', [

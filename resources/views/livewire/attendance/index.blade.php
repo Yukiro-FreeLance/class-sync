@@ -59,7 +59,7 @@
                             @foreach ($students as $student)
                                 <button type="button" wire:click="selectStudent({{ $student->id }})"
                                     class="w-full text-left px-4 py-2.5 hover:bg-brand-50 dark:hover:bg-brand-900/20 text-sm border-b border-surface-border dark:border-slate-800 last:border-0">
-                                    <span class="font-medium">{{ $student->full_name }}</span>
+                                    <span class="font-medium">{{ $student->list_name }}</span>
                                     <span
                                         class="text-slate-500 ml-2 font-mono text-xs">{{ $student->student_number }}</span>
                                 </button>
@@ -71,7 +71,7 @@
                 @if ($selectedStudent)
                     <div
                         class="mb-4 p-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800">
-                        <p class="font-medium">{{ $selectedStudent->full_name }}</p>
+                        <p class="font-medium">{{ $selectedStudent->list_name }}</p>
                         <p class="text-xs text-slate-500 font-mono">{{ $selectedStudent->student_number }}</p>
                     </div>
                 @endif
@@ -101,7 +101,7 @@
                         <div
                             class="flex items-center justify-between py-2.5 border-b border-surface-border dark:border-slate-800 last:border-0">
                             <div>
-                                <p class="text-sm font-medium">{{ $record->student?->full_name ?? 'Unknown' }}</p>
+                                <p class="text-sm font-medium">{{ $record->student?->list_name ?? 'Unknown' }}</p>
                                 <span @class([
                                     'text-xs font-medium',
                                     'text-emerald-600' => $record->time_in && !$record->time_out,
@@ -143,7 +143,7 @@
                             @foreach ($students as $student)
                                 <button type="button" wire:click="selectStudent({{ $student->id }})"
                                     class="w-full text-left px-4 py-2.5 hover:bg-brand-50 dark:hover:bg-brand-900/20 text-sm border-b border-surface-border dark:border-slate-800 last:border-0">
-                                    <span class="font-medium">{{ $student->full_name }}</span>
+                                    <span class="font-medium">{{ $student->list_name }}</span>
                                     <span
                                         class="text-slate-500 ml-2 font-mono text-xs">{{ $student->student_number }}</span>
                                 </button>
@@ -155,7 +155,7 @@
                 @if ($selectedStudent)
                     <div
                         class="p-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800">
-                        <p class="font-medium">{{ $selectedStudent->full_name }}</p>
+                        <p class="font-medium">{{ $selectedStudent->list_name }}</p>
                         <p class="text-xs text-slate-500 font-mono">{{ $selectedStudent->student_number }}</p>
                     </div>
                 @endif
@@ -203,7 +203,7 @@
                         <div
                             class="flex items-center justify-between py-2.5 border-b border-surface-border dark:border-slate-800 last:border-0">
                             <div>
-                                <p class="text-sm font-medium">{{ $log->student?->full_name ?? 'Unknown' }}</p>
+                                <p class="text-sm font-medium">{{ $log->student?->list_name ?? 'Unknown' }}</p>
                                 <span class="text-xs font-medium"
                                     style="color: {{ $log->remark?->color ?? '#64748b' }}">
                                     {{ $log->remark?->label }}

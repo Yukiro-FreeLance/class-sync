@@ -57,6 +57,8 @@ class QrGenerator extends Component
                 });
             })
             ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('middle_name')
             ->limit(50)
             ->get();
 

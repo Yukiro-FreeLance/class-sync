@@ -213,11 +213,12 @@ class ReportService
             ->where('status', StudentStatus::Active)
             ->orderBy('last_name')
             ->orderBy('first_name')
+            ->orderBy('middle_name')
             ->get();
 
         $rows = $students->map(fn (Student $student) => [
             'student_number' => $student->student_number,
-            'name' => $student->full_name,
+            'name' => $student->list_name,
             'grade' => $student->gradeLevel?->name ?? '—',
             'section' => $student->section?->name ?? '—',
             'gender' => $student->gender ? ucfirst($student->gender) : '—',
@@ -260,7 +261,7 @@ class ReportService
         $rows = $records->map(fn (AttendanceRecord $record) => [
             'date' => $record->date->format('M j, Y'),
             'student_number' => $record->student?->student_number ?? '—',
-            'name' => $record->student?->full_name ?? '—',
+            'name' => $record->student?->list_name ?? '—',
             'grade' => $record->student?->gradeLevel?->name ?? '—',
             'section' => $record->student?->section?->name ?? '—',
             'time_in' => $record->time_in ? substr((string) $record->time_in, 0, 5) : '—',
@@ -310,7 +311,7 @@ class ReportService
                 'date' => $record->date->format('M j, Y'),
                 'source' => 'Gate',
                 'student_number' => $record->student?->student_number ?? '—',
-                'name' => $record->student?->full_name ?? '—',
+                'name' => $record->student?->list_name ?? '—',
                 'grade' => $record->student?->gradeLevel?->name ?? '—',
                 'section' => $record->student?->section?->name ?? '—',
                 'detail' => AttendanceStatus::Absent->label(),
@@ -323,7 +324,7 @@ class ReportService
                 'date' => $log->date->format('M j, Y'),
                 'source' => 'Class',
                 'student_number' => $log->student?->student_number ?? '—',
-                'name' => $log->student?->full_name ?? '—',
+                'name' => $log->student?->list_name ?? '—',
                 'grade' => $log->student?->gradeLevel?->name ?? '—',
                 'section' => $log->section?->name ?? $log->student?->section?->name ?? '—',
                 'detail' => ($log->classSchedule?->subject?->name ?? 'Class').': '.($log->remark?->label ?? '—'),

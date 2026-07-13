@@ -39,7 +39,7 @@
                 @endcan
                 @can('archive', $student)
                     <button type="button" wire:click="archive({{ $student->id }})"
-                        wire:confirm="Archive {{ $student->full_name }}? They will be hidden from lists and attendance."
+                        wire:confirm="Archive {{ $student->list_name }}? They will be hidden from lists and attendance."
                         @click="open = false"
                         class="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -52,7 +52,7 @@
             @else
                 @can('restore', $student)
                     <button type="button" wire:click="restore({{ $student->id }})"
-                        wire:confirm="Restore {{ $student->full_name }} to active records?"
+                        wire:confirm="Restore {{ $student->list_name }} to active records?"
                         @click="open = false"
                         class="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,7 +65,7 @@
                 @can('delete', $student)
                     <div class="my-1 border-t border-surface-border dark:border-slate-800"></div>
                     <button type="button" wire:click="forceDelete({{ $student->id }})"
-                        wire:confirm="Permanently delete {{ $student->full_name }}? This cannot be undone."
+                        wire:confirm="Permanently delete {{ $student->list_name }}? This cannot be undone."
                         @click="open = false"
                         class="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

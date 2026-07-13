@@ -326,6 +326,7 @@ class BulkEnroll extends Component
             ])
             ->orderBy('last_name')
             ->orderBy('first_name')
+            ->orderBy('middle_name')
             ->get();
     }
 

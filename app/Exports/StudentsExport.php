@@ -34,7 +34,8 @@ class StudentsExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMap
             ->when($this->filters['section'] ?? null, fn ($q, $section) => $q->where('section_id', $section))
             ->when($this->filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->orderBy('last_name')
-            ->orderBy('first_name');
+            ->orderBy('first_name')
+            ->orderBy('middle_name');
     }
 
     /**

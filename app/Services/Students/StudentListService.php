@@ -72,7 +72,8 @@ class StudentListService
             ->when($activeOnly, fn (Builder $q) => $q->where('status', StudentStatus::Active))
             ->orderBy('section_id')
             ->orderBy('last_name')
-            ->orderBy('first_name');
+            ->orderBy('first_name')
+            ->orderBy('middle_name');
 
         return $query;
     }
@@ -119,7 +120,8 @@ class StudentListService
             })
             ->when($activeOnly, fn (Builder $q) => $q->where('status', StudentStatus::Active))
             ->orderBy('last_name')
-            ->orderBy('first_name');
+            ->orderBy('first_name')
+            ->orderBy('middle_name');
 
         return $query;
     }
@@ -190,6 +192,12 @@ class StudentListService
             $middle = $student->middle_name ? ' '.strtoupper(substr($student->middle_name, 0, 1)).'.' : '';
 
             return trim("{$student->last_name}, {$student->first_name}{$middle}");
+        }
+
+        if ($style === 'lastname_first') {
+            $given = trim($student->first_name.' '.($student->middle_name ?? ''));
+
+            return trim("{$student->last_name}, {$given}");
         }
 
         return $student->full_name;

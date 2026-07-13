@@ -197,8 +197,12 @@ class Index extends Component
             ->where(function ($query) {
                 $query->where('student_number', 'like', "%{$this->search}%")
                     ->orWhere('first_name', 'like', "%{$this->search}%")
-                    ->orWhere('last_name', 'like', "%{$this->search}%");
+                    ->orWhere('last_name', 'like', "%{$this->search}%")
+                    ->orWhere('middle_name', 'like', "%{$this->search}%");
             })
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('middle_name')
             ->limit(8)
             ->get();
     }
@@ -213,7 +217,13 @@ class Index extends Component
 
         if ($this->mode === 'class' && $this->section && $this->classScheduleId) {
             $classLogs = app(AttendancePeriodService::class)
-                ->logsForSchedule((int) $this->section, $this->classScheduleId, $this->date);
+                ->logsForSchedule((int) $this->section, $this->classScheduleId, $this->date)
+                ->sortBy([
+                    fn ($log) => mb_strtolower($log->student?->last_name ?? ''),
+                    fn ($log) => mb_strtolower($log->student?->first_name ?? ''),
+                    fn ($log) => mb_strtolower((string) $log->student?->middle_name),
+                ])
+                ->values();
         }
 
         $todayRecords = $this->isTeacherAttendanceScoped()

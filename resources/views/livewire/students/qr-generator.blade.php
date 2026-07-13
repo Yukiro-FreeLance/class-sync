@@ -33,7 +33,7 @@
                             @checked(in_array($student->id, $selectedIds))
                             class="rounded border-surface-border text-green-700 focus:ring-brand-500">
                         <div>
-                            <p class="font-medium text-sm">{{ $student->full_name }}</p>
+                            <p class="font-medium text-sm">{{ $student->list_name }}</p>
                             <p class="text-xs text-slate-500 font-mono">{{ $student->student_number }}</p>
                         </div>
                     </label>
@@ -52,7 +52,7 @@
                                 <img src="data:image/png;base64,{{ $qrCodes[$student->id] }}" alt="QR Code"
                                     class="mx-auto w-32 h-32">
                             @endif
-                            <p class="font-medium text-sm mt-2">{{ $student->full_name }}</p>
+                            <p class="font-medium text-sm mt-2">{{ $student->list_name }}</p>
                             <p class="text-xs text-slate-500 font-mono">{{ $student->student_number }}</p>
                         </div>
                     @endforeach

@@ -112,7 +112,7 @@ class TeachersTest extends TestCase
             ->get(route('teachers.show', $teacher))
             ->assertOk()
             ->assertSee($teacher->full_name)
-            ->assertSee($student->full_name);
+            ->assertSee($student->list_name);
 
         Livewire::actingAs($this->admin)
             ->test(Show::class, ['teacher' => $teacher])

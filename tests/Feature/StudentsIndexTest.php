@@ -102,6 +102,6 @@ class StudentsIndexTest extends TestCase
 
         Livewire::actingAs($teacher)
             ->test(StudentsIndex::class)
-            ->assertSee($student->full_name);
+            ->assertSee($student->list_name);
     }
 }

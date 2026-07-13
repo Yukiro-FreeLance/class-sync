@@ -119,7 +119,7 @@ class LiveMonitorService
 
         return [
             'record' => $record,
-            'name' => $record->student?->full_name ?? 'Unknown',
+            'name' => $record->student?->list_name ?? 'Unknown',
             'student_number' => $record->student?->student_number,
             'grade' => $record->student?->gradeLevel?->name,
             'section' => $record->student?->section?->display_label,
@@ -136,7 +136,7 @@ class LiveMonitorService
     {
         return [
             'record' => $record,
-            'name' => $record->student?->full_name ?? 'Unknown',
+            'name' => $record->student?->list_name ?? 'Unknown',
             'student_number' => $record->student?->student_number,
             'grade' => $record->student?->gradeLevel?->name,
             'section' => $record->student?->section?->display_label,
@@ -153,7 +153,7 @@ class LiveMonitorService
     {
         return [
             'record' => $record,
-            'name' => $record->student?->full_name ?? 'Unknown',
+            'name' => $record->student?->list_name ?? 'Unknown',
             'student_number' => $record->student?->student_number,
             'time_in' => $record->time_in ? Str::substr((string) $record->time_in, 0, 5) : '—',
             'time_out' => $record->time_out ? Str::substr((string) $record->time_out, 0, 5) : '—',
@@ -174,10 +174,11 @@ class LiveMonitorService
             ->when($recordedIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $recordedIds))
             ->orderBy('last_name')
             ->orderBy('first_name')
+            ->orderBy('middle_name')
             ->limit($limit)
             ->get()
             ->map(fn (Student $student) => [
-                'name' => $student->full_name,
+                'name' => $student->list_name,
                 'student_number' => $student->student_number,
                 'grade' => $student->gradeLevel?->name,
                 'section' => $student->section?->display_label,

@@ -238,10 +238,7 @@
                                     @if ($entry)
                                         @php
                                             $activeRemark = $remarks->firstWhere('id', $entry['remark_id']);
-                                            $initials = collect(explode(' ', $student->full_name))
-                                                ->take(2)
-                                                ->map(fn ($w) => mb_substr($w, 0, 1))
-                                                ->join('');
+                                            $initials = mb_substr($student->first_name, 0, 1).mb_substr($student->last_name, 0, 1);
                                             $hasNotes = ($entry['remarks'] ?? '') !== '' || ($entry['went_out'] ?? false);
                                         @endphp
                                         <tbody wire:key="student-{{ $student->id }}" x-data="{ open: @js($hasNotes) }">
@@ -255,7 +252,7 @@
                                                     </div>
                                                     <div class="min-w-0">
                                                         <p class="font-medium text-slate-900 dark:text-white truncate">
-                                                            {{ $student->full_name }}
+                                                            {{ $student->list_name }}
                                                         </p>
                                                         <p class="font-mono text-[11px] text-slate-500">
                                                             {{ $student->student_number }}

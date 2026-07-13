@@ -148,10 +148,10 @@ class StudentArchiveTest extends TestCase
 
         Livewire::actingAs($this->admin)
             ->test(Index::class)
-            ->assertSee($active->full_name)
-            ->assertDontSee($archived->full_name)
+            ->assertSee($active->list_name)
+            ->assertDontSee($archived->list_name)
             ->set('showArchived', true)
-            ->assertSee($archived->full_name);
+            ->assertSee($archived->list_name);
     }
 
     public function test_archived_student_cannot_be_edited_by_non_admin(): void

@@ -77,6 +77,7 @@ class ClassScheduleResolver
             )
             ->orderBy('last_name')
             ->orderBy('first_name')
+            ->orderBy('middle_name')
             ->get();
 
         if ($enrolled->isNotEmpty()) {
@@ -87,6 +88,7 @@ class ClassScheduleResolver
             ->where('section_id', $sectionId)
             ->orderBy('last_name')
             ->orderBy('first_name')
+            ->orderBy('middle_name')
             ->get();
     }
 }

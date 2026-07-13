@@ -253,9 +253,10 @@ class Index extends Component
                     $direction,
                 )
                 ->orderBy('last_name')
-                ->orderBy('first_name'),
-            'status' => $query->orderBy('status', $direction)->orderBy('last_name')->orderBy('first_name'),
-            default => $query->orderBy('last_name', $direction)->orderBy('first_name', $direction),
+                ->orderBy('first_name')
+                ->orderBy('middle_name'),
+            'status' => $query->orderBy('status', $direction)->orderBy('last_name')->orderBy('first_name')->orderBy('middle_name'),
+            default => $query->orderBy('last_name', $direction)->orderBy('first_name', $direction)->orderBy('middle_name', $direction),
         };
     }
 }

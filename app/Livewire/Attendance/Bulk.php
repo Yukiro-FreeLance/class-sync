@@ -189,7 +189,9 @@ class Bulk extends Component
         if ($this->studentSearch !== '') {
             $needle = mb_strtolower($this->studentSearch);
             $students = $students->filter(function (Student $student) use ($needle) {
-                return str_contains(mb_strtolower($student->full_name), $needle)
+                return str_contains(mb_strtolower($student->last_name), $needle)
+                    || str_contains(mb_strtolower($student->first_name), $needle)
+                    || str_contains(mb_strtolower((string) $student->middle_name), $needle)
                     || str_contains(mb_strtolower($student->student_number), $needle);
             });
         }
@@ -200,6 +202,14 @@ class Bulk extends Component
                 fn (Student $student) => (int) ($this->entries[$student->id]['remark_id'] ?? 0) === $filterId,
             );
         }
+
+        $students = $students
+            ->sortBy([
+                fn (Student $student) => mb_strtolower($student->last_name),
+                fn (Student $student) => mb_strtolower($student->first_name),
+                fn (Student $student) => mb_strtolower((string) $student->middle_name),
+            ])
+            ->values();
 
         $selectedSection = $this->section
             ? Section::query()->with(['gradeLevel.department', 'course', 'academicYear', 'adviser'])->find($this->section)

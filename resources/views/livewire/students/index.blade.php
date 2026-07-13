@@ -193,7 +193,7 @@
                                     </div>
                                     <div class="min-w-0">
                                         <p class="font-medium text-slate-900 dark:text-white truncate">
-                                            {{ $student->full_name }}
+                                            {{ $student->list_name }}
                                         </p>
                                         <p class="font-mono text-xs text-slate-500">{{ $student->student_number }}</p>
                                     </div>

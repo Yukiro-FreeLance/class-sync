@@ -232,7 +232,7 @@
                             {{ strtoupper(substr($student->first_name, 0, 1)) }}
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-slate-800 dark:text-white truncate">{{ $student->full_name }}</p>
+                            <p class="text-sm font-medium text-slate-800 dark:text-white truncate">{{ $student->list_name }}</p>
                             <p class="text-xs text-slate-500">
                                 {{ $student->gradeLevel?->name ?? '—' }}
                                 @if ($student->section) &middot; {{ $student->section->name }} @endif

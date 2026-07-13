@@ -116,7 +116,7 @@
                     @forelse ($students as $student)
                         <tr>
                             <td class="font-mono text-xs">{{ $student->student_number }}</td>
-                            <td class="font-medium">{{ $student->full_name }}</td>
+                            <td class="font-medium">{{ $student->list_name }}</td>
                             <td>{{ $student->gradeLevel?->name ?? '—' }}</td>
                             <td>{{ $student->section?->name ?? '—' }}</td>
                             <td>
