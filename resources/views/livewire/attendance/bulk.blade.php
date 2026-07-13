@@ -205,13 +205,19 @@
                                     <h3 class="font-semibold text-slate-900 dark:text-white">Students</h3>
                                     <span
                                         class="text-xs font-medium text-slate-500 bg-white dark:bg-slate-800 border border-surface-border dark:border-slate-700 rounded-full px-2 py-0.5">
-                                        {{ $filteredCount }}{{ $studentSearch || $statusFilter ? ' / ' . $totalStudents : '' }}
+                                        {{ $filteredCount }}{{ $studentSearch || $statusFilter || $genderFilter ? ' / ' . $totalStudents : '' }}
                                     </span>
                                 </div>
                                 <p class="text-[11px] text-slate-500 mt-0.5">Click a status button to mark · expand row
                                     for notes</p>
                             </div>
-                            <div class="relative sm:w-56 shrink-0">
+                            <div class="flex flex-wrap items-center gap-2 shrink-0">
+                                <select wire:model.live="genderFilter" class="select-field text-sm w-32 py-2">
+                                    @foreach ($genderFilters as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="relative sm:w-56">
                                 <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none"
                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -328,9 +334,9 @@
                                     <tr>
                                         <td colspan="4" class="text-center py-16">
                                             <p class="text-sm text-slate-500">No students match your filters.</p>
-                                            @if ($studentSearch || $statusFilter)
+                                            @if ($studentSearch || $statusFilter || $genderFilter)
                                                 <button type="button"
-                                                    wire:click="$set('studentSearch', ''); $set('statusFilter', '')"
+                                                    wire:click="$set('studentSearch', ''); $set('statusFilter', ''); $set('genderFilter', '')"
                                                     class="mt-2 text-xs text-green-700 hover:underline">Clear filters</button>
                                             @endif
                                         </td>

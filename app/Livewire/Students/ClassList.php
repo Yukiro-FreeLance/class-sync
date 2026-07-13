@@ -36,6 +36,9 @@ class ClassList extends Component
 
     public bool $activeOnly = true;
 
+    #[Url]
+    public string $gender = '';
+
     public function mount(StudentListService $listService): void
     {
         $this->authorize('viewAny', Student::class);
@@ -65,6 +68,7 @@ class ClassList extends Component
             'section' => $this->section ?: null,
             'subject' => $this->subject ?: null,
             'active_only' => $this->activeOnly ? '1' : '0',
+            'gender' => $this->gender ?: null,
         ]));
     }
 
@@ -83,6 +87,7 @@ class ClassList extends Component
                 $this->subject ? (int) $this->subject : null,
                 $this->activeOnly,
                 $user,
+                $this->gender ?: null,
             )->get();
 
             $sectionContext = $listService->sectionContext((int) $this->section, $this->academicYearId);
@@ -122,6 +127,7 @@ class ClassList extends Component
             'subjects' => $subjects,
             'academicYears' => AcademicYear::query()->orderByDesc('start_date')->get(),
             'canExport' => $this->section && $students->isNotEmpty(),
+            'genderFilters' => StudentListService::genderFilterOptions(),
         ]);
     }
 }

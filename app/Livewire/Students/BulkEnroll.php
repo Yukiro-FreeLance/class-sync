@@ -60,6 +60,9 @@ class BulkEnroll extends Component
 
     public string $studentSearch = '';
 
+    #[Url]
+    public string $gender = '';
+
     public bool $mergeExistingSubjects = false;
 
     public function mount(): void
@@ -77,7 +80,7 @@ class BulkEnroll extends Component
 
     public function updatedMode(): void
     {
-        $this->reset(['selectedStudentIds', 'selectedSubjectIds', 'studentSearch', 'studentScope']);
+        $this->reset(['selectedStudentIds', 'selectedSubjectIds', 'studentSearch', 'studentScope', 'gender']);
         $this->studentScope = $this->mode === 'subjects' ? 'section' : 'grade';
     }
 
@@ -317,16 +320,17 @@ class BulkEnroll extends Component
             });
         }
 
-        return $query
-            ->with([
-                'gradeLevel',
-                'section',
-                'enrollments' => fn ($q) => $q
-                    ->where('academic_year_id', $this->academicYearId)
-                    ->with('classSchedules'),
-            ])
-            ->tap(fn ($query) => StudentListService::orderByGenderThenName($query))
-            ->get();
+        $query->with([
+            'gradeLevel',
+            'section',
+            'enrollments' => fn ($q) => $q
+                ->where('academic_year_id', $this->academicYearId)
+                ->with('classSchedules'),
+        ]);
+
+        return StudentListService::orderByGenderThenName(
+            StudentListService::applyGenderFilter($query, $this->gender ?: null)
+        )->get();
     }
 
     /**
@@ -385,6 +389,7 @@ class BulkEnroll extends Component
             'academicYears' => AcademicYear::query()->orderByDesc('start_date')->get(),
             'semesterOptions' => $this->semesterOptions(),
             'statuses' => EnrollmentStatus::options(),
+            'genderFilters' => StudentListService::genderFilterOptions(),
             'selectedSection' => $selectedSection,
             'scheduleCount' => $this->section && $this->selectedSubjectIds
                 ? count($this->enrollmentService()->scheduleIdsForSubjects(

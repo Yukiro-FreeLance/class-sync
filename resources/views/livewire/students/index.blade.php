@@ -145,7 +145,12 @@
                     <option value="{{ $value }}">{{ $label }}</option>
                 @endforeach
             </select>
-            @if ($search || $department || $grade || $section || $status)
+            <select wire:model.live="gender" class="select-field w-full sm:w-40">
+                @foreach ($genderFilters as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+            </select>
+            @if ($search || $department || $grade || $section || $status || $gender)
                 <button wire:click="clearFilters" class="text-sm text-green-700 hover:text-brand-500 font-medium">
                     Clear filters
                 </button>

@@ -38,6 +38,9 @@ class Index extends Component
     public string $status = '';
 
     #[Url]
+    public string $gender = '';
+
+    #[Url]
     public bool $showArchived = false;
 
     #[Url]
@@ -75,6 +78,11 @@ class Index extends Component
         $this->resetPage();
     }
 
+    public function updatingGender(): void
+    {
+        $this->resetPage();
+    }
+
     public function updatingShowArchived(): void
     {
         $this->resetPage();
@@ -105,7 +113,7 @@ class Index extends Component
 
     public function clearFilters(): void
     {
-        $this->reset(['search', 'grade', 'department', 'section', 'status', 'showArchived', 'sort', 'direction']);
+        $this->reset(['search', 'grade', 'department', 'section', 'status', 'gender', 'showArchived', 'sort', 'direction']);
         $this->perPage = 15;
         $this->resetPage();
     }
@@ -135,6 +143,7 @@ class Index extends Component
             'grade' => $this->grade ?: null,
             'section' => $this->section ?: null,
             'status' => $this->status ?: null,
+            'gender' => $this->gender ?: null,
         ]));
     }
 
@@ -200,6 +209,7 @@ class Index extends Component
             ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
             ->when($this->section, fn ($q) => $q->where('section_id', $this->section))
             ->when($this->status, fn ($q) => $q->where('status', $this->status))
+            ->when($this->gender, fn ($q) => StudentListService::applyGenderFilter($q, $this->gender))
             ->tap(fn ($query) => $this->applyStudentSort($query))
             ->paginate($this->normalizedPerPage());
 
@@ -231,6 +241,7 @@ class Index extends Component
                 ->orderBy('name')
                 ->get(),
             'statuses' => StudentStatus::options(),
+            'genderFilters' => StudentListService::genderFilterOptions(),
         ];
     }
 

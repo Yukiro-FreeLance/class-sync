@@ -7,9 +7,14 @@
     </div>
 
     <div class="panel mb-6">
-        <div class="flex flex-col sm:flex-row gap-4">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <input wire:model.live.debounce.300ms="search" type="search" placeholder="Search students..."
                 class="input-field flex-1">
+            <select wire:model.live="gender" class="select-field">
+                @foreach ($genderFilters as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+            </select>
             <div class="flex gap-2">
                 <button wire:click="selectAll" type="button" class="btn-secondary">Select All</button>
                 <button wire:click="clearSelection" type="button" class="btn-secondary">Clear</button>

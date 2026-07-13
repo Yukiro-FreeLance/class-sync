@@ -49,6 +49,7 @@ class StudentListService
         ?int $sectionId = null,
         bool $activeOnly = true,
         ?User $user = null,
+        ?string $gender = null,
     ): Builder {
         $query = $this->scopedStudentQuery($user)
             ->with(['gradeLevel.department', 'section'])
@@ -72,7 +73,7 @@ class StudentListService
             ->when($activeOnly, fn (Builder $q) => $q->where('status', StudentStatus::Active))
             ->orderBy('section_id');
 
-        return self::orderByGenderThenName($query);
+        return self::orderByGenderThenName(self::applyGenderFilter($query, $gender));
     }
 
     /**
@@ -84,6 +85,7 @@ class StudentListService
         ?int $subjectId = null,
         bool $activeOnly = true,
         ?User $user = null,
+        ?string $gender = null,
     ): Builder {
         $query = $this->scopedStudentQuery($user)
             ->with(['gradeLevel.department', 'section'])
@@ -117,7 +119,7 @@ class StudentListService
             })
             ->when($activeOnly, fn (Builder $q) => $q->where('status', StudentStatus::Active));
 
-        return self::orderByGenderThenName($query);
+        return self::orderByGenderThenName(self::applyGenderFilter($query, $gender));
     }
 
     /**
@@ -129,8 +131,9 @@ class StudentListService
         ?int $sectionId = null,
         bool $activeOnly = true,
         ?User $user = null,
+        ?string $gender = null,
     ): Collection {
-        return $this->masterListQuery($academicYearId, $gradeLevelId, $sectionId, $activeOnly, $user)
+        return $this->masterListQuery($academicYearId, $gradeLevelId, $sectionId, $activeOnly, $user, $gender)
             ->get()
             ->groupBy(fn (Student $student) => $student->section?->name ?? 'Unassigned');
     }
@@ -178,6 +181,52 @@ class StudentListService
             'female', 'f' => 'F',
             default => $gender ? strtoupper(substr($gender, 0, 1)) : '—',
         };
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function genderFilterOptions(): array
+    {
+        return [
+            '' => 'All genders',
+            'male' => 'Male',
+            'female' => 'Female',
+        ];
+    }
+
+    /**
+     * @param  Builder<Student>  $query
+     * @return Builder<Student>
+     */
+    public static function applyGenderFilter(Builder $query, ?string $gender): Builder
+    {
+        if (blank($gender)) {
+            return $query;
+        }
+
+        return match (self::genderGroupKey($gender)) {
+            'male' => $query->whereRaw('LOWER(gender) IN (?, ?)', ['male', 'm']),
+            'female' => $query->whereRaw('LOWER(gender) IN (?, ?)', ['female', 'f']),
+            default => $query,
+        };
+    }
+
+    /**
+     * @param  Collection<int, Student>  $students
+     * @return Collection<int, Student>
+     */
+    public static function filterCollectionByGender(Collection $students, ?string $gender): Collection
+    {
+        if (blank($gender)) {
+            return $students;
+        }
+
+        $key = self::genderGroupKey($gender);
+
+        return $students
+            ->filter(fn (Student $student) => self::genderGroupKey($student->gender) === $key)
+            ->values();
     }
 
     public static function genderGroupKey(?string $gender): string

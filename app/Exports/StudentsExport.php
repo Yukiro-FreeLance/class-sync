@@ -15,7 +15,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class StudentsExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     /**
-     * @param  array{search?: string, grade?: string, section?: string, status?: string}  $filters
+     * @param  array{search?: string, grade?: string, section?: string, status?: string, gender?: string}  $filters
      */
     public function __construct(protected array $filters = []) {}
 
@@ -33,7 +33,8 @@ class StudentsExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMap
             })
             ->when($this->filters['grade'] ?? null, fn ($q, $grade) => $q->where('grade_level_id', $grade))
             ->when($this->filters['section'] ?? null, fn ($q, $section) => $q->where('section_id', $section))
-            ->when($this->filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
+            ->when($this->filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
+            ->when($this->filters['gender'] ?? null, fn ($q, $gender) => StudentListService::applyGenderFilter($q, $gender));
 
         return StudentListService::orderByGenderThenName($query);
     }

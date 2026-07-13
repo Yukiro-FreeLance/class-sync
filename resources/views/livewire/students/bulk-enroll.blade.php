@@ -221,6 +221,11 @@
                         </p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
+                        <select wire:model.live="gender" class="select-field text-sm w-32">
+                            @foreach ($genderFilters as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
                         <input wire:model.live.debounce.300ms="studentSearch" type="search"
                             placeholder="Search…" class="input-field text-sm w-40">
                         <button type="button" wire:click="selectAllStudents" class="btn-secondary text-xs py-1.5">Select all</button>

@@ -28,6 +28,8 @@ class Bulk extends Component
 
     public string $statusFilter = '';
 
+    public string $genderFilter = '';
+
     public function mount(AttendancePeriodService $periodService): void
     {
         $this->authorize('create', AttendanceRecord::class);
@@ -204,6 +206,10 @@ class Bulk extends Component
             );
         }
 
+        if ($this->genderFilter !== '') {
+            $students = StudentListService::filterCollectionByGender($students, $this->genderFilter);
+        }
+
         $students = StudentListService::sortByGenderThenName($students);
 
         $selectedSection = $this->section
@@ -219,6 +225,7 @@ class Bulk extends Component
             'attendanceStats' => $this->attendanceStats($remarks),
             'totalStudents' => count($this->entries),
             'filteredCount' => $students->count(),
+            'genderFilters' => StudentListService::genderFilterOptions(),
         ]));
     }
 }

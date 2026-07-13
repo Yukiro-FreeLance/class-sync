@@ -77,7 +77,7 @@
     <x-page-header title="All Students" :subtitle="$students->total() . ' student(s) in assigned sections'" />
 
     <div class="panel mb-6">
-        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div class="lg:col-span-2">
                 <input wire:model.live.debounce.300ms="search" type="search"
                     placeholder="Search by name, ID, or RFID..." class="input-field">
@@ -93,6 +93,11 @@
             <select wire:model.live="status" class="select-field">
                 <option value="">All Statuses</option>
                 @foreach ($statuses as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+            </select>
+            <select wire:model.live="gender" class="select-field">
+                @foreach ($genderFilters as $value => $label)
                     <option value="{{ $value }}">{{ $label }}</option>
                 @endforeach
             </select>

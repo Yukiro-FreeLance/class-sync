@@ -130,25 +130,6 @@ class StudentListTest extends TestCase
             ->assertSee('Showing');
     }
 
-    public function test_class_list_livewire_shows_students_for_section(): void
-    {
-        Student::factory()->create([
-            'grade_level_id' => $this->gradeLevel->id,
-            'section_id' => $this->section->id,
-            'academic_year_id' => $this->academicYear->id,
-            'last_name' => 'Reyes',
-        ]);
-
-        Livewire::actingAs($this->admin)
-            ->test(ClassList::class)
-            ->set('academicYearId', $this->academicYear->id)
-            ->set('department', (string) $this->gradeLevel->department_id)
-            ->set('grade', (string) $this->gradeLevel->id)
-            ->set('section', (string) $this->section->id)
-            ->assertSee('Reyes')
-            ->assertSee('Total Students');
-    }
-
     public function test_student_list_groups_and_sorts_by_gender_then_name(): void
     {
         Student::factory()->create([
@@ -197,6 +178,56 @@ class StudentListTest extends TestCase
             ->set('section', (string) $this->section->id)
             ->assertSee('Male (2)')
             ->assertSee('Female (1)');
+    }
+
+    public function test_class_list_filters_by_gender(): void
+    {
+        Student::factory()->create([
+            'grade_level_id' => $this->gradeLevel->id,
+            'section_id' => $this->section->id,
+            'academic_year_id' => $this->academicYear->id,
+            'gender' => 'male',
+            'last_name' => 'Reyes',
+            'first_name' => 'Juan',
+        ]);
+
+        Student::factory()->create([
+            'grade_level_id' => $this->gradeLevel->id,
+            'section_id' => $this->section->id,
+            'academic_year_id' => $this->academicYear->id,
+            'gender' => 'female',
+            'last_name' => 'Cruz',
+            'first_name' => 'Ana',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(ClassList::class)
+            ->set('academicYearId', $this->academicYear->id)
+            ->set('department', (string) $this->gradeLevel->department_id)
+            ->set('grade', (string) $this->gradeLevel->id)
+            ->set('section', (string) $this->section->id)
+            ->set('gender', 'male')
+            ->assertSee('Reyes, Juan')
+            ->assertDontSee('Cruz, Ana');
+    }
+
+    public function test_class_list_livewire_shows_students_for_section(): void
+    {
+        Student::factory()->create([
+            'grade_level_id' => $this->gradeLevel->id,
+            'section_id' => $this->section->id,
+            'academic_year_id' => $this->academicYear->id,
+            'last_name' => 'Reyes',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(ClassList::class)
+            ->set('academicYearId', $this->academicYear->id)
+            ->set('department', (string) $this->gradeLevel->department_id)
+            ->set('grade', (string) $this->gradeLevel->id)
+            ->set('section', (string) $this->section->id)
+            ->assertSee('Reyes')
+            ->assertSee('Total Students');
     }
 
     public function test_master_list_export_downloads(): void

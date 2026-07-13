@@ -20,7 +20,7 @@
     </x-page-header>
 
     <div class="panel mb-6 no-print">
-        <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-7 gap-3">
             <div>
                 <label class="text-[11px] font-medium text-slate-500 mb-1 block">Academic Year</label>
                 <select wire:model.live="academicYearId" class="select-field">
@@ -70,6 +70,14 @@
                     <input wire:model.live="activeOnly" type="checkbox" class="rounded text-green-700">
                     Active only
                 </label>
+            </div>
+            <div>
+                <label class="text-[11px] font-medium text-slate-500 mb-1 block">Gender</label>
+                <select wire:model.live="gender" class="select-field">
+                    @foreach ($genderFilters as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </select>
             </div>
         </div>
     </div>

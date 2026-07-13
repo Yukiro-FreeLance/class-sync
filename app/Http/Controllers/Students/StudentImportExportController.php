@@ -32,7 +32,7 @@ class StudentImportExportController extends Controller
     {
         $this->authorize('viewAny', Student::class);
 
-        $filters = $request->only(['search', 'grade', 'section', 'status']);
+        $filters = $request->only(['search', 'grade', 'section', 'status', 'gender']);
         $format = $request->query('format', 'xlsx');
         $extension = $format === 'csv' ? 'csv' : 'xlsx';
         $writerType = $format === 'csv' ? ExcelFormat::CSV : ExcelFormat::XLSX;

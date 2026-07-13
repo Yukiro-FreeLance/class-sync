@@ -31,6 +31,9 @@ class MasterList extends Component
 
     public bool $activeOnly = true;
 
+    #[Url]
+    public string $gender = '';
+
     public function mount(StudentListService $listService): void
     {
         $this->authorize('viewAny', Student::class);
@@ -56,6 +59,7 @@ class MasterList extends Component
             'grade' => $this->grade ?: null,
             'section' => $this->section ?: null,
             'active_only' => $this->activeOnly ? '1' : '0',
+            'gender' => $this->gender ?: null,
         ]));
     }
 
@@ -74,6 +78,7 @@ class MasterList extends Component
                 $this->section ? (int) $this->section : null,
                 $this->activeOnly,
                 $user,
+                $this->gender ?: null,
             );
             $totalCount = $groupedStudents->flatten(1)->count();
         }
@@ -99,6 +104,7 @@ class MasterList extends Component
                 ->get(),
             'academicYears' => AcademicYear::query()->orderByDesc('start_date')->get(),
             'canExport' => $this->grade && $totalCount > 0,
+            'genderFilters' => StudentListService::genderFilterOptions(),
         ]);
     }
 }

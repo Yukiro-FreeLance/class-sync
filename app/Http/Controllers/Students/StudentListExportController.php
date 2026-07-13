@@ -27,6 +27,7 @@ class StudentListExportController extends Controller
             'grade' => ['required', 'exists:grade_levels,id'],
             'section' => ['nullable', 'exists:sections,id'],
             'active_only' => ['nullable', 'in:0,1'],
+            'gender' => ['nullable', 'in:male,female'],
             'format' => ['nullable', 'in:xlsx,csv'],
         ]);
 
@@ -37,6 +38,7 @@ class StudentListExportController extends Controller
             isset($validated['section']) ? (int) $validated['section'] : null,
             $activeOnly,
             $request->user(),
+            $validated['gender'] ?? null,
         )->get();
 
         $gradeName = GradeLevel::query()->find($validated['grade'])?->name ?? 'grade';
@@ -64,6 +66,7 @@ class StudentListExportController extends Controller
             'section' => ['required', 'exists:sections,id'],
             'subject' => ['nullable', 'exists:subjects,id'],
             'active_only' => ['nullable', 'in:0,1'],
+            'gender' => ['nullable', 'in:male,female'],
             'format' => ['nullable', 'in:xlsx,csv'],
         ]);
 
@@ -74,6 +77,7 @@ class StudentListExportController extends Controller
             isset($validated['subject']) ? (int) $validated['subject'] : null,
             $activeOnly,
             $request->user(),
+            $validated['gender'] ?? null,
         )->get();
 
         $section = Section::query()->with('gradeLevel')->find($validated['section']);

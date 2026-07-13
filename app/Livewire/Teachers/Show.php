@@ -30,6 +30,9 @@ class Show extends Component
     #[Url]
     public string $status = '';
 
+    #[Url]
+    public string $gender = '';
+
     public function mount(User $teacher): void
     {
         abort_unless(
@@ -57,6 +60,11 @@ class Show extends Component
         $this->resetPage();
     }
 
+    public function updatingGender(): void
+    {
+        $this->resetPage();
+    }
+
     public function title(): string
     {
         return $this->teacher->full_name;
@@ -77,6 +85,7 @@ class Show extends Component
             })
             ->when($this->section, fn ($q) => $q->where('section_id', $this->section))
             ->when($this->status, fn ($q) => $q->where('status', $this->status))
+            ->when($this->gender, fn ($q) => StudentListService::applyGenderFilter($q, $this->gender))
             ->tap(fn ($query) => StudentListService::orderByGenderThenName($query))
             ->paginate(20);
 
@@ -88,6 +97,7 @@ class Show extends Component
                 ->orderBy('name')
                 ->get(),
             'statuses' => StudentStatus::options(),
+            'genderFilters' => StudentListService::genderFilterOptions(),
             'advisedSections' => $this->teacher->advisedSections()
                 ->with('gradeLevel')
                 ->orderBy('name')

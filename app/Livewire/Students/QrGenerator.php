@@ -15,6 +15,8 @@ class QrGenerator extends Component
 {
     public string $search = '';
 
+    public string $gender = '';
+
     public array $selectedIds = [];
 
     public function toggleStudent(int $id): void
@@ -36,6 +38,7 @@ class QrGenerator extends Component
                         ->orWhere('student_number', 'like', "%{$this->search}%");
                 });
             })
+            ->when($this->gender, fn ($q) => StudentListService::applyGenderFilter($q, $this->gender))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -57,6 +60,7 @@ class QrGenerator extends Component
                         ->orWhere('student_number', 'like', "%{$this->search}%");
                 });
             })
+            ->when($this->gender, fn ($q) => StudentListService::applyGenderFilter($q, $this->gender))
             ->tap(fn ($query) => StudentListService::orderByGenderThenName($query))
             ->limit(50)
             ->get();
@@ -76,6 +80,7 @@ class QrGenerator extends Component
         return [
             'students' => $students,
             'qrCodes' => $qrCodes,
+            'genderFilters' => StudentListService::genderFilterOptions(),
         ];
     }
 
