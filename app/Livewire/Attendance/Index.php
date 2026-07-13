@@ -9,6 +9,7 @@ use App\Models\AttendanceRecord;
 use App\Models\AttendanceRemark;
 use App\Models\Student;
 use App\Services\Attendance\AttendancePeriodService;
+use App\Services\Students\StudentListService;
 use App\Services\Attendance\AttendanceService;
 use App\Services\Attendance\ClassScheduleResolver;
 use Illuminate\Support\Carbon;
@@ -200,9 +201,7 @@ class Index extends Component
                     ->orWhere('last_name', 'like', "%{$this->search}%")
                     ->orWhere('middle_name', 'like', "%{$this->search}%");
             })
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name')
+            ->tap(fn ($query) => StudentListService::orderByGenderThenName($query))
             ->limit(8)
             ->get();
     }
@@ -219,6 +218,7 @@ class Index extends Component
             $classLogs = app(AttendancePeriodService::class)
                 ->logsForSchedule((int) $this->section, $this->classScheduleId, $this->date)
                 ->sortBy([
+                    fn ($log) => StudentListService::genderSortOrder($log->student?->gender),
                     fn ($log) => mb_strtolower($log->student?->last_name ?? ''),
                     fn ($log) => mb_strtolower($log->student?->first_name ?? ''),
                     fn ($log) => mb_strtolower((string) $log->student?->middle_name),

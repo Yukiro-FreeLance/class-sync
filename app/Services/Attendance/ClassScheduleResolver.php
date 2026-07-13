@@ -5,6 +5,7 @@ namespace App\Services\Attendance;
 use App\Models\AcademicYear;
 use App\Models\ClassSchedule;
 use App\Models\Student;
+use App\Services\Students\StudentListService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -75,20 +76,16 @@ class ClassScheduleResolver
                     fn ($scheduleQuery) => $scheduleQuery->where('class_schedules.id', $classScheduleId),
                 ),
             )
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name')
             ->get();
 
         if ($enrolled->isNotEmpty()) {
-            return $enrolled;
+            return StudentListService::sortByGenderThenName($enrolled);
         }
 
-        return Student::query()
-            ->where('section_id', $sectionId)
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name')
-            ->get();
+        return StudentListService::sortByGenderThenName(
+            Student::query()
+                ->where('section_id', $sectionId)
+                ->get()
+        );
     }
 }

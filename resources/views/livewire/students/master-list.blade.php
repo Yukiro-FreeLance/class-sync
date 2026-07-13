@@ -106,16 +106,20 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach ($sectionStudents as $index => $student)
-                                    <tr>
-                                        <td class="text-center text-slate-500">{{ $index + 1 }}</td>
-                                        <td class="font-mono text-xs">{{ $student->student_number }}</td>
-                                        <td>{{ $student->list_name }}</td>
-                                        <td class="text-center">{{ \App\Services\Students\StudentListService::formatGender($student->gender) }}</td>
-                                        <td>{{ $student->birth_date?->format('M d, Y') ?? '—' }}</td>
-                                        <td>{{ $student->section?->name ?? '—' }}</td>
-                                        <td class="text-xs max-w-[200px] truncate print:whitespace-normal print:max-w-none">{{ $student->address ?? '—' }}</td>
-                                    </tr>
+                                @php $genderGroups = \App\Services\Students\StudentListService::groupByGender($sectionStudents); @endphp
+                                @foreach ($genderGroups as $genderKey => $genderStudents)
+                                    <x-student-gender-header :colspan="7" :gender-key="$genderKey" :count="$genderStudents->count()" :groups="$genderGroups" />
+                                    @foreach ($genderStudents as $index => $student)
+                                        <tr>
+                                            <td class="text-center text-slate-500">{{ $index + 1 }}</td>
+                                            <td class="font-mono text-xs">{{ $student->student_number }}</td>
+                                            <td>{{ $student->list_name }}</td>
+                                            <td class="text-center">{{ \App\Services\Students\StudentListService::formatGender($student->gender) }}</td>
+                                            <td>{{ $student->birth_date?->format('M d, Y') ?? '—' }}</td>
+                                            <td>{{ $student->section?->name ?? '—' }}</td>
+                                            <td class="text-xs max-w-[200px] truncate print:whitespace-normal print:max-w-none">{{ $student->address ?? '—' }}</td>
+                                        </tr>
+                                    @endforeach
                                 @endforeach
                             </tbody>
                         </table>

@@ -26,7 +26,10 @@
             <h3 class="font-semibold text-slate-900 dark:text-white mb-4">Students ({{ count($selectedIds) }}
                 selected)</h3>
             <div class="space-y-2 max-h-96 overflow-y-auto">
-                @foreach ($students as $student)
+                @php $genderGroups = \App\Services\Students\StudentListService::groupByGender($students); @endphp
+                @foreach ($genderGroups as $genderKey => $genderStudents)
+                    <x-student-gender-divider :gender-key="$genderKey" :count="$genderStudents->count()" :groups="$genderGroups" class="rounded-lg" />
+                    @foreach ($genderStudents as $student)
                     <label
                         class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
                         <input type="checkbox" wire:click="toggleStudent({{ $student->id }})"
@@ -37,6 +40,7 @@
                             <p class="text-xs text-slate-500 font-mono">{{ $student->student_number }}</p>
                         </div>
                     </label>
+                    @endforeach
                 @endforeach
             </div>
         </div>

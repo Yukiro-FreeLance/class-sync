@@ -14,6 +14,7 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\Subject;
 use App\Services\Students\StudentEnrollmentService;
+use App\Services\Students\StudentListService;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -324,9 +325,7 @@ class BulkEnroll extends Component
                     ->where('academic_year_id', $this->academicYearId)
                     ->with('classSchedules'),
             ])
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name')
+            ->tap(fn ($query) => StudentListService::orderByGenderThenName($query))
             ->get();
     }
 

@@ -6,6 +6,7 @@ use App\Enums\StudentStatus;
 use App\Models\Section;
 use App\Models\User;
 use App\Services\Academic\TeacherScopeService;
+use App\Services\Students\StudentListService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -76,9 +77,7 @@ class Show extends Component
             })
             ->when($this->section, fn ($q) => $q->where('section_id', $this->section))
             ->when($this->status, fn ($q) => $q->where('status', $this->status))
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name')
+            ->tap(fn ($query) => StudentListService::orderByGenderThenName($query))
             ->paginate(20);
 
         return view('livewire.teachers.show', [

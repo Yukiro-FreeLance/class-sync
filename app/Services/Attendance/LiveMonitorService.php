@@ -9,6 +9,7 @@ use App\Models\AttendanceRecord;
 use App\Models\ClassSchedule;
 use App\Models\Student;
 use App\Models\Visitor;
+use App\Services\Students\StudentListService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -168,13 +169,12 @@ class LiveMonitorService
     {
         $recordedIds = $todayRecords->pluck('student_id');
 
-        return Student::query()
-            ->with(['gradeLevel', 'section.course'])
-            ->where('status', StudentStatus::Active)
-            ->when($recordedIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $recordedIds))
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name')
+        return StudentListService::orderByGenderThenName(
+            Student::query()
+                ->with(['gradeLevel', 'section.course'])
+                ->where('status', StudentStatus::Active)
+                ->when($recordedIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $recordedIds))
+        )
             ->limit($limit)
             ->get()
             ->map(fn (Student $student) => [

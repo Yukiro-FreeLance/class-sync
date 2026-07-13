@@ -113,7 +113,10 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse ($students as $student)
+                    @php $genderGroups = \App\Services\Students\StudentListService::groupByGender(collect($students->items())); @endphp
+                    @forelse ($genderGroups as $genderKey => $genderStudents)
+                        <x-student-gender-header :colspan="6" :gender-key="$genderKey" :count="$genderStudents->count()" :groups="$genderGroups" />
+                        @foreach ($genderStudents as $student)
                         <tr>
                             <td class="font-mono text-xs">{{ $student->student_number }}</td>
                             <td class="font-medium">{{ $student->list_name }}</td>
@@ -136,6 +139,7 @@
                                 @endcan
                             </td>
                         </tr>
+                        @endforeach
                     @empty
                         <tr>
                             <td colspan="6" class="text-center py-12">

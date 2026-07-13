@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Student;
+use App\Services\Students\StudentListService;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -32,10 +33,9 @@ class StudentsExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMap
             })
             ->when($this->filters['grade'] ?? null, fn ($q, $grade) => $q->where('grade_level_id', $grade))
             ->when($this->filters['section'] ?? null, fn ($q, $section) => $q->where('section_id', $section))
-            ->when($this->filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name');
+            ->when($this->filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
+
+        return StudentListService::orderByGenderThenName($query);
     }
 
     /**

@@ -230,7 +230,10 @@
             </div>
 
             <div class="max-h-[calc(100vh-16rem)] overflow-y-auto divide-y divide-surface-border dark:divide-slate-800">
-                @forelse ($students as $student)
+                @php $genderGroups = \App\Services\Students\StudentListService::groupByGender($students); @endphp
+                @forelse ($genderGroups as $genderKey => $genderStudents)
+                    <x-student-gender-divider :gender-key="$genderKey" :count="$genderStudents->count()" :groups="$genderGroups" />
+                    @foreach ($genderStudents as $student)
                     @php
                         $enrollment = $student->enrollments->firstWhere('academic_year_id', $academicYearId);
                         $isSelected = in_array($student->id, $selectedStudentIds, true);
@@ -261,6 +264,7 @@
                             @endif
                         </div>
                     </label>
+                    @endforeach
                 @empty
                     <div class="px-5 py-16 text-center text-sm text-slate-500">
                         @if (! $grade)

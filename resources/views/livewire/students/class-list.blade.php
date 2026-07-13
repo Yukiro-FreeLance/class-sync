@@ -131,17 +131,21 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($students as $index => $student)
-                            <tr>
-                                <td class="text-center text-slate-500">{{ $index + 1 }}</td>
-                                <td class="font-mono text-xs">{{ $student->student_number }}</td>
-                                <td class="font-medium">{{ $student->list_name }}</td>
-                                <td class="text-center">{{ \App\Services\Students\StudentListService::formatGender($student->gender) }}</td>
-                                <td>{{ $student->birth_date?->format('m/d/Y') ?? '—' }}</td>
-                                <td class="no-print">
-                                    <span class="badge bg-emerald-100 text-emerald-700">{{ $student->status?->label() ?? '—' }}</span>
-                                </td>
-                            </tr>
+                        @php $genderGroups = \App\Services\Students\StudentListService::groupByGender($students); @endphp
+                        @foreach ($genderGroups as $genderKey => $genderStudents)
+                            <x-student-gender-header :colspan="6" :gender-key="$genderKey" :count="$genderStudents->count()" :groups="$genderGroups" />
+                            @foreach ($genderStudents as $index => $student)
+                                <tr>
+                                    <td class="text-center text-slate-500">{{ $index + 1 }}</td>
+                                    <td class="font-mono text-xs">{{ $student->student_number }}</td>
+                                    <td class="font-medium">{{ $student->list_name }}</td>
+                                    <td class="text-center">{{ \App\Services\Students\StudentListService::formatGender($student->gender) }}</td>
+                                    <td>{{ $student->birth_date?->format('m/d/Y') ?? '—' }}</td>
+                                    <td class="no-print">
+                                        <span class="badge bg-emerald-100 text-emerald-700">{{ $student->status?->label() ?? '—' }}</span>
+                                    </td>
+                                </tr>
+                            @endforeach
                         @endforeach
                     </tbody>
                 </table>

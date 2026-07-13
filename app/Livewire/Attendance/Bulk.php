@@ -9,6 +9,7 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Services\Attendance\AttendancePeriodService;
 use App\Services\Attendance\ClassScheduleResolver;
+use App\Services\Students\StudentListService;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -203,13 +204,7 @@ class Bulk extends Component
             );
         }
 
-        $students = $students
-            ->sortBy([
-                fn (Student $student) => mb_strtolower($student->last_name),
-                fn (Student $student) => mb_strtolower($student->first_name),
-                fn (Student $student) => mb_strtolower((string) $student->middle_name),
-            ])
-            ->values();
+        $students = StudentListService::sortByGenderThenName($students);
 
         $selectedSection = $this->section
             ? Section::query()->with(['gradeLevel.department', 'course', 'academicYear', 'adviser'])->find($this->section)
@@ -218,6 +213,7 @@ class Bulk extends Component
         return view('livewire.attendance.bulk', array_merge($filterData, [
             'remarks' => $remarks,
             'students' => $students,
+            'studentGenderGroups' => StudentListService::groupByGender($students),
             'selectedSection' => $selectedSection,
             'attendanceSummary' => $this->attendanceSummary($remarks),
             'attendanceStats' => $this->attendanceStats($remarks),

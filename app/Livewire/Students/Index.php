@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\GradeLevel;
 use App\Models\Section;
 use App\Models\Student;
+use App\Services\Students\StudentListService;
 use App\Services\Students\StudentService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
@@ -204,6 +205,10 @@ class Index extends Component
 
         return [
             'students' => $students,
+            'studentGenderGroups' => $this->sort === 'name'
+                ? StudentListService::groupByGender($students->getCollection())
+                : collect(['all' => $students->getCollection()]),
+            'groupStudentsByGender' => $this->sort === 'name',
             'sort' => $this->sort,
             'direction' => $this->direction,
             'perPage' => $this->normalizedPerPage(),
@@ -256,7 +261,11 @@ class Index extends Component
                 ->orderBy('first_name')
                 ->orderBy('middle_name'),
             'status' => $query->orderBy('status', $direction)->orderBy('last_name')->orderBy('first_name')->orderBy('middle_name'),
-            default => $query->orderBy('last_name', $direction)->orderBy('first_name', $direction)->orderBy('middle_name', $direction),
+            default => $query
+                ->orderByRaw(StudentListService::genderOrderExpression().' ASC')
+                ->orderBy('last_name', $direction)
+                ->orderBy('first_name', $direction)
+                ->orderBy('middle_name', $direction),
         };
     }
 }

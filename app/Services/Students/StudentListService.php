@@ -70,12 +70,9 @@ class StudentListService
                         ->where('status', EnrollmentStatus::Enrolled));
             }))
             ->when($activeOnly, fn (Builder $q) => $q->where('status', StudentStatus::Active))
-            ->orderBy('section_id')
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name');
+            ->orderBy('section_id');
 
-        return $query;
+        return self::orderByGenderThenName($query);
     }
 
     /**
@@ -118,12 +115,9 @@ class StudentListService
                         ->whereHas('classSchedules', fn (Builder $schedule) => $schedule->whereIn('class_schedules.id', $scheduleIds));
                 });
             })
-            ->when($activeOnly, fn (Builder $q) => $q->where('status', StudentStatus::Active))
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name');
+            ->when($activeOnly, fn (Builder $q) => $q->where('status', StudentStatus::Active));
 
-        return $query;
+        return self::orderByGenderThenName($query);
     }
 
     /**
@@ -184,6 +178,98 @@ class StudentListService
             'female', 'f' => 'F',
             default => $gender ? strtoupper(substr($gender, 0, 1)) : '—',
         };
+    }
+
+    public static function genderGroupKey(?string $gender): string
+    {
+        return match (strtolower(trim((string) $gender))) {
+            'male', 'm' => 'male',
+            'female', 'f' => 'female',
+            default => 'unspecified',
+        };
+    }
+
+    public static function genderGroupLabel(string $key): string
+    {
+        return match ($key) {
+            'male' => 'Male',
+            'female' => 'Female',
+            default => 'Unspecified',
+        };
+    }
+
+    public static function genderSortOrder(?string $gender): int
+    {
+        return match (self::genderGroupKey($gender)) {
+            'male' => 0,
+            'female' => 1,
+            default => 2,
+        };
+    }
+
+    public static function genderOrderExpression(string $column = 'gender'): string
+    {
+        $column = preg_replace('/[^a-z_]/', '', strtolower($column)) ?: 'gender';
+
+        return "CASE WHEN LOWER({$column}) IN ('male', 'm') THEN 0 WHEN LOWER({$column}) IN ('female', 'f') THEN 1 ELSE 2 END";
+    }
+
+    /**
+     * @param  Builder<Student>  $query
+     * @return Builder<Student>
+     */
+    public static function orderByGenderThenName(Builder $query): Builder
+    {
+        return $query
+            ->orderByRaw(self::genderOrderExpression().' ASC')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('middle_name');
+    }
+
+    /**
+     * @param  Collection<int, Student>  $students
+     * @return Collection<int, Student>
+     */
+    public static function sortByGenderThenName(Collection $students): Collection
+    {
+        return $students
+            ->sortBy([
+                fn (Student $student) => self::genderSortOrder($student->gender),
+                fn (Student $student) => mb_strtolower($student->last_name),
+                fn (Student $student) => mb_strtolower($student->first_name),
+                fn (Student $student) => mb_strtolower((string) $student->middle_name),
+            ])
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, Student>  $students
+     * @return Collection<string, Collection<int, Student>>
+     */
+    public static function groupByGender(Collection $students): Collection
+    {
+        $order = ['male' => 0, 'female' => 1, 'unspecified' => 2];
+
+        return self::sortByGenderThenName($students)
+            ->groupBy(fn (Student $student) => self::genderGroupKey($student->gender))
+            ->sortKeysUsing(fn (string $a, string $b): int => ($order[$a] ?? 99) <=> ($order[$b] ?? 99));
+    }
+
+    /**
+     * @param  Collection<string, Collection<int, Student>>  $groups
+     */
+    public static function showGenderHeader(string $genderKey, Collection $groups): bool
+    {
+        if (! $groups->has($genderKey)) {
+            return false;
+        }
+
+        if ($genderKey === 'unspecified') {
+            return $groups->has('male') || $groups->has('female');
+        }
+
+        return true;
     }
 
     public static function formatName(Student $student, string $style = 'full'): string

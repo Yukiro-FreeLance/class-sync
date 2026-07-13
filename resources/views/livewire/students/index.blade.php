@@ -178,7 +178,11 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse ($students as $student)
+                    @forelse ($studentGenderGroups as $genderKey => $genderStudents)
+                        @if ($groupStudentsByGender)
+                            <x-student-gender-header :colspan="4" :gender-key="$genderKey" :count="$genderStudents->count()" :groups="$studentGenderGroups" />
+                        @endif
+                        @foreach ($genderStudents as $student)
                         <tr wire:key="student-{{ $student->id }}" @class([
                             'opacity-75' => $student->trashed(),
                         ])>
@@ -210,6 +214,7 @@
                                 <x-student-row-actions :student="$student" />
                             </td>
                         </tr>
+                        @endforeach
                     @empty
                         <tr>
                             <td colspan="4" class="text-center py-16">

@@ -149,6 +149,56 @@ class StudentListTest extends TestCase
             ->assertSee('Total Students');
     }
 
+    public function test_student_list_groups_and_sorts_by_gender_then_name(): void
+    {
+        Student::factory()->create([
+            'grade_level_id' => $this->gradeLevel->id,
+            'section_id' => $this->section->id,
+            'academic_year_id' => $this->academicYear->id,
+            'gender' => 'female',
+            'last_name' => 'Alpha',
+            'first_name' => 'Anna',
+        ]);
+
+        Student::factory()->create([
+            'grade_level_id' => $this->gradeLevel->id,
+            'section_id' => $this->section->id,
+            'academic_year_id' => $this->academicYear->id,
+            'gender' => 'male',
+            'last_name' => 'Zulu',
+            'first_name' => 'Zed',
+        ]);
+
+        Student::factory()->create([
+            'grade_level_id' => $this->gradeLevel->id,
+            'section_id' => $this->section->id,
+            'academic_year_id' => $this->academicYear->id,
+            'gender' => 'male',
+            'last_name' => 'Bravo',
+            'first_name' => 'Ben',
+        ]);
+
+        $groups = StudentListService::groupByGender(
+            app(StudentListService::class)->classListQuery(
+                $this->academicYear->id,
+                $this->section->id,
+            )->get(),
+        );
+
+        $this->assertSame(['male', 'female'], $groups->keys()->all());
+        $this->assertSame(['Bravo', 'Zulu'], $groups['male']->pluck('last_name')->all());
+        $this->assertSame(['Alpha'], $groups['female']->pluck('last_name')->all());
+
+        Livewire::actingAs($this->admin)
+            ->test(ClassList::class)
+            ->set('academicYearId', $this->academicYear->id)
+            ->set('department', (string) $this->gradeLevel->department_id)
+            ->set('grade', (string) $this->gradeLevel->id)
+            ->set('section', (string) $this->section->id)
+            ->assertSee('Male (2)')
+            ->assertSee('Female (1)');
+    }
+
     public function test_master_list_export_downloads(): void
     {
         Student::factory()->create([

@@ -3,6 +3,7 @@
 namespace App\Livewire\Students;
 
 use App\Models\Student;
+use App\Services\Students\StudentListService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -56,9 +57,7 @@ class QrGenerator extends Component
                         ->orWhere('student_number', 'like', "%{$this->search}%");
                 });
             })
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name')
+            ->tap(fn ($query) => StudentListService::orderByGenderThenName($query))
             ->limit(50)
             ->get();
 

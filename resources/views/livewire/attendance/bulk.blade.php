@@ -233,10 +233,18 @@
                                     <th class="w-24">Notes</th>
                                 </tr>
                             </thead>
-                            @forelse ($students as $index => $student)
+                            @php $hasVisibleStudents = false; @endphp
+                            @forelse ($studentGenderGroups as $genderKey => $genderStudents)
+                                @if (\App\Services\Students\StudentListService::showGenderHeader($genderKey, $studentGenderGroups))
+                                    <tbody>
+                                        <x-student-gender-header :colspan="4" :gender-key="$genderKey" :count="$genderStudents->count()" :groups="$studentGenderGroups" />
+                                    </tbody>
+                                @endif
+                                @foreach ($genderStudents as $index => $student)
                                     @php $entry = $entries[$student->id] ?? null; @endphp
                                     @if ($entry)
                                         @php
+                                            $hasVisibleStudents = true;
                                             $activeRemark = $remarks->firstWhere('id', $entry['remark_id']);
                                             $initials = mb_substr($student->first_name, 0, 1).mb_substr($student->last_name, 0, 1);
                                             $hasNotes = ($entry['remarks'] ?? '') !== '' || ($entry['went_out'] ?? false);
@@ -314,6 +322,7 @@
                                         </tr>
                                         </tbody>
                                     @endif
+                                @endforeach
                                 @empty
                                     <tbody>
                                     <tr>

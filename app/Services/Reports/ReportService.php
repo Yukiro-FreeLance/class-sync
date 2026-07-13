@@ -11,6 +11,7 @@ use App\Models\AttendanceRemark;
 use App\Models\Student;
 use App\Models\Visitor;
 use App\Services\Settings\SettingsService;
+use App\Services\Students\StudentListService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -209,12 +210,10 @@ class ReportService
      */
     protected function studentList(string $periodLabel, array $filters): ReportPreview
     {
-        $students = $this->studentQuery($filters)
-            ->where('status', StudentStatus::Active)
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('middle_name')
-            ->get();
+        $students = StudentListService::orderByGenderThenName(
+            $this->studentQuery($filters)
+                ->where('status', StudentStatus::Active)
+        )->get();
 
         $rows = $students->map(fn (Student $student) => [
             'student_number' => $student->student_number,
