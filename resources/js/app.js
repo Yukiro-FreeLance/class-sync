@@ -418,4 +418,45 @@ document.addEventListener('alpine:init', () => {
             return items.filter((item) => item.label.toLowerCase().includes(q));
         },
     }));
+
+    Alpine.data('subscriptionExpiryBanner', (storageKey) => {
+        const readDismissed = () => {
+            try {
+                const raw = localStorage.getItem(storageKey);
+                if (!raw) {
+                    return false;
+                }
+
+                const data = JSON.parse(raw);
+
+                if (data?.mode === 'acknowledge') {
+                    return true;
+                }
+
+                if (data?.mode === 'remind' && data?.until) {
+                    return Date.now() < Number(data.until);
+                }
+            } catch (e) {
+                return false;
+            }
+
+            return false;
+        };
+
+        return {
+            storageKey,
+            visible: !readDismissed(),
+
+            acknowledge() {
+                localStorage.setItem(this.storageKey, JSON.stringify({ mode: 'acknowledge' }));
+                this.visible = false;
+            },
+
+            remindLater() {
+                const until = Date.now() + (24 * 60 * 60 * 1000);
+                localStorage.setItem(this.storageKey, JSON.stringify({ mode: 'remind', until }));
+                this.visible = false;
+            },
+        };
+    });
 });

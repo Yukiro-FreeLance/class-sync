@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->name('api.')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->name('login');
 
-    Route::middleware(['auth:sanctum', 'installed'])->group(function () {
+    Route::middleware(['auth:sanctum', 'installed', 'subscription.active'])->group(function () {
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
         Route::get('/user', [AuthController::class, 'user'])->name('user');
 

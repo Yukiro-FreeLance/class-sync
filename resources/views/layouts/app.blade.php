@@ -95,6 +95,8 @@
 
         {{-- Main content --}}
         <div class="flex-1 flex flex-col min-w-0 app-main">
+            <x-subscription-expiry-banner :banner="$subscriptionExpiryBanner ?? null" />
+
             <header class="app-topbar">
                 <div class="flex items-center gap-4 px-4 sm:px-6 py-3">
                     <button @click="sidebarOpen = !sidebarOpen"

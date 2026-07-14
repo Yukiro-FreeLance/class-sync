@@ -46,11 +46,11 @@
                 </h2>
                 <p class="max-w-md text-slate-400 leading-relaxed">
                     Monitor student attendance in real time, manage profiles, and generate reports — all from one
-                    secure, offline-capable platform.
+                    secure platform — offline on campus or online from anywhere.
                 </p>
 
                 <ul class="space-y-3.5">
-                    @foreach (['QR & RFID attendance scanning', 'Live campus monitoring dashboard', 'Multi-role access for your entire staff'] as $item)
+                    @foreach (['Real-time attendance tracking', 'Live campus monitoring dashboard', 'Multi-role access for your entire staff'] as $item)
                         <li class="flex items-center gap-3 text-sm text-slate-300">
                             <svg class="h-5 w-5 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24"
                                 stroke="currentColor" stroke-width="2.5">

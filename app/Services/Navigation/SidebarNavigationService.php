@@ -98,6 +98,13 @@ class SidebarNavigationService
             //     'permission' => 'backups.view',
             // ],
             [
+                'key' => 'subscription',
+                'label' => 'Subscription',
+                'route' => 'settings.subscription',
+                'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+                'super_admin_only' => true,
+            ],
+            [
                 'key' => 'application-package',
                 'label' => 'Desktop App',
                 'route' => 'settings.application-package',
@@ -148,6 +155,7 @@ class SidebarNavigationService
             'settings' => request()->routeIs('settings.general', 'settings.attendance'),
             'audit-logs' => request()->routeIs('audit-logs.*'),
             'backups' => request()->routeIs('settings.backup'),
+            'subscription' => request()->routeIs('settings.subscription'),
             'application-package' => request()->routeIs(
                 'settings.application-package',
                 'settings.application-package.download',
@@ -197,6 +205,7 @@ class SidebarNavigationService
             ['label' => 'Settings', 'href' => route('settings.general'), 'permission' => 'settings.view'],
             ['label' => 'Audit Logs', 'href' => route('audit-logs.index'), 'permission' => 'settings.update'],
             ['label' => 'Backups', 'href' => route('settings.backup'), 'permission' => 'backups.view'],
+            ['label' => 'Subscription', 'href' => route('settings.subscription'), 'permission' => null, 'super_admin_only' => true],
             ['label' => 'Desktop App', 'href' => route('settings.application-package'), 'permission' => null, 'super_admin_only' => true],
             ['label' => 'Help & User Manual', 'href' => route('help.index'), 'permission' => null],
         ];

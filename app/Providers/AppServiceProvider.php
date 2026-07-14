@@ -16,6 +16,7 @@ use App\Policies\SettingPolicy;
 use App\Policies\StudentPolicy;
 use App\Policies\UserPolicy;
 use App\Services\Settings\BrandingService;
+use App\Services\Settings\SubscriptionService;
 use App\Services\Setup\InstallerService;
 use App\Services\Users\SuperAdminService;
 use Illuminate\Support\Facades\Gate;
@@ -83,6 +84,10 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.app', function ($view) {
             $view->with('branding', app(BrandingService::class)->forLayout());
+            $view->with(
+                'subscriptionExpiryBanner',
+                app(SubscriptionService::class)->expiryBanner(auth()->user())
+            );
         });
     }
 
