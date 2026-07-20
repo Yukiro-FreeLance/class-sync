@@ -42,6 +42,9 @@ class Index extends Component
     public string $gender = '';
 
     #[Url]
+    public string $enrollment = '';
+
+    #[Url]
     public bool $showArchived = false;
 
     #[Url]
@@ -84,6 +87,11 @@ class Index extends Component
         $this->resetPage();
     }
 
+    public function updatingEnrollment(): void
+    {
+        $this->resetPage();
+    }
+
     public function updatingShowArchived(): void
     {
         $this->resetPage();
@@ -114,7 +122,7 @@ class Index extends Component
 
     public function clearFilters(): void
     {
-        $this->reset(['search', 'grade', 'department', 'section', 'status', 'gender', 'showArchived', 'sort', 'direction']);
+        $this->reset(['search', 'grade', 'department', 'section', 'status', 'gender', 'enrollment', 'showArchived', 'sort', 'direction']);
         $this->perPage = 15;
         $this->resetPage();
     }
@@ -223,6 +231,14 @@ class Index extends Component
             ->when($this->section, fn ($q) => $q->where('section_id', $this->section))
             ->when($this->status, fn ($q) => $q->where('status', $this->status))
             ->when($this->gender, fn ($q) => StudentListService::applyGenderFilter($q, $this->gender))
+            ->when($this->enrollment === 'enrolled', fn ($q) => $q->whereHas(
+                'enrollments',
+                fn ($enrollment) => $enrollment->whereColumn('student_enrollments.academic_year_id', 'students.academic_year_id'),
+            ))
+            ->when($this->enrollment === 'none', fn ($q) => $q->whereDoesntHave(
+                'enrollments',
+                fn ($enrollment) => $enrollment->whereColumn('student_enrollments.academic_year_id', 'students.academic_year_id'),
+            ))
             ->tap(fn ($query) => $this->applyStudentSort($query))
             ->paginate($this->normalizedPerPage());
 
@@ -255,6 +271,11 @@ class Index extends Component
                 ->get(),
             'statuses' => StudentStatus::options(),
             'genderFilters' => StudentListService::genderFilterOptions(),
+            'enrollmentFilters' => [
+                '' => 'All enrollments',
+                'enrolled' => 'Has enrollment',
+                'none' => 'No enrollment',
+            ],
         ];
     }
 

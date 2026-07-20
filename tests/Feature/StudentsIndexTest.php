@@ -202,4 +202,60 @@ class StudentsIndexTest extends TestCase
             ->assertSee('No enrollment')
             ->assertSee('2 subjects');
     }
+
+    public function test_students_index_can_filter_by_enrollment(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $department = Department::query()->create([
+            'name' => 'Junior High School',
+            'code' => 'jhs-enrollment-filter',
+            'sort_order' => 2,
+            'is_active' => true,
+        ]);
+
+        $academicYear = AcademicYear::factory()->create(['is_current' => true]);
+        $grade = GradeLevel::factory()->create(['department_id' => $department->id]);
+        $section = Section::factory()->create([
+            'grade_level_id' => $grade->id,
+            'academic_year_id' => $academicYear->id,
+        ]);
+
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(UserRole::Administrator->value);
+
+        $unenrolled = Student::factory()->create([
+            'grade_level_id' => $grade->id,
+            'section_id' => $section->id,
+            'academic_year_id' => $academicYear->id,
+            'first_name' => 'FilterNone',
+            'last_name' => 'Student',
+        ]);
+
+        $enrolled = Student::factory()->create([
+            'grade_level_id' => $grade->id,
+            'section_id' => $section->id,
+            'academic_year_id' => $academicYear->id,
+            'first_name' => 'FilterYes',
+            'last_name' => 'Student',
+        ]);
+
+        StudentEnrollment::query()->create([
+            'student_id' => $enrolled->id,
+            'academic_year_id' => $academicYear->id,
+            'grade_level_id' => $grade->id,
+            'section_id' => $section->id,
+            'status' => EnrollmentStatus::Enrolled,
+            'enrollment_date' => now()->toDateString(),
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(StudentsIndex::class)
+            ->set('enrollment', 'none')
+            ->assertSee($unenrolled->list_name)
+            ->assertDontSee($enrolled->list_name)
+            ->set('enrollment', 'enrolled')
+            ->assertSee($enrolled->list_name)
+            ->assertDontSee($unenrolled->list_name);
+    }
 }
