@@ -178,6 +178,7 @@
                     <tr>
                         <x-sortable-th field="name" label="Student" :sort="$sort" :direction="$direction" />
                         <x-sortable-th field="grade" label="Grade / Section" :sort="$sort" :direction="$direction" />
+                        <th>Enrollment</th>
                         <x-sortable-th field="status" label="Status" :sort="$sort" :direction="$direction" />
                         <th class="text-right w-32">Actions</th>
                     </tr>
@@ -185,7 +186,7 @@
                 <tbody>
                     @forelse ($studentGenderGroups as $genderKey => $genderStudents)
                         @if ($groupStudentsByGender)
-                            <x-student-gender-header :colspan="4" :gender-key="$genderKey" :count="$genderStudents->count()" :groups="$studentGenderGroups" />
+                            <x-student-gender-header :colspan="5" :gender-key="$genderKey" :count="$genderStudents->count()" :groups="$studentGenderGroups" />
                         @endif
                         @foreach ($genderStudents as $student)
                         <tr wire:key="student-{{ $student->id }}" @class([
@@ -213,6 +214,15 @@
                                 <p class="text-xs text-slate-500">Section {{ $student->section?->name ?? '—' }}</p>
                             </td>
                             <td>
+                                @if (! $student->has_current_enrollment)
+                                    <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                        No enrollment
+                                    </span>
+                                @else
+                                    <p class="text-sm text-slate-900 dark:text-white">{{ number_format((int) $student->enrolled_subjects_count) }} {{ (int) $student->enrolled_subjects_count === 1 ? 'subject' : 'subjects' }}</p>
+                                @endif
+                            </td>
+                            <td>
                                 <x-student-status-badge :status="$student->status" :archived="$student->trashed()" />
                             </td>
                             <td class="text-right">
@@ -222,7 +232,7 @@
                         @endforeach
                     @empty
                         <tr>
-                            <td colspan="4" class="text-center py-16">
+                            <td colspan="5" class="text-center py-16">
                                 @if ($showArchived)
                                     <div class="max-w-sm mx-auto">
                                         <p class="text-slate-500 mb-1">No archived students</p>

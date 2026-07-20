@@ -9,6 +9,7 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Services\Students\StudentListService;
 use App\Services\Students\StudentService;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Title;
@@ -197,6 +198,18 @@ class Index extends Component
 
         $students = (clone $baseQuery)
             ->with(['gradeLevel.department', 'section'])
+            ->withExists([
+                'enrollments as has_current_enrollment' => fn ($q) => $q
+                    ->whereColumn('student_enrollments.academic_year_id', 'students.academic_year_id'),
+            ])
+            ->addSelect([
+                'enrolled_subjects_count' => DB::table('student_enrollment_classes')
+                    ->selectRaw('count(distinct class_schedules.subject_id)')
+                    ->join('student_enrollments', 'student_enrollments.id', '=', 'student_enrollment_classes.student_enrollment_id')
+                    ->join('class_schedules', 'class_schedules.id', '=', 'student_enrollment_classes.class_schedule_id')
+                    ->whereColumn('student_enrollments.student_id', 'students.id')
+                    ->whereColumn('student_enrollments.academic_year_id', 'students.academic_year_id'),
+            ])
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
                     $q->where('student_number', 'like', "%{$this->search}%")
