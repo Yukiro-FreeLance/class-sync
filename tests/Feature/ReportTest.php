@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AttendanceStatus;
+use App\Enums\EnrollmentStatus;
 use App\Enums\StudentStatus;
 use App\Enums\UserRole;
 use App\Livewire\Reports\Index as ReportsIndex;
@@ -13,6 +14,7 @@ use App\Models\AttendanceRemark;
 use App\Models\GradeLevel;
 use App\Models\Section;
 use App\Models\Student;
+use App\Models\StudentEnrollment;
 use App\Models\User;
 use App\Services\Reports\ReportService;
 use Database\Seeders\AttendanceRemarkSeeder;
@@ -123,6 +125,106 @@ class ReportTest extends TestCase
             ->set('reportType', 'student_list')
             ->assertSee('Student List')
             ->assertSee('PreviewTest');
+    }
+
+    public function test_enrollment_report_counts_students_per_year_level_and_section(): void
+    {
+        $academicYear = AcademicYear::factory()->create(['is_current' => true]);
+        $grade = GradeLevel::factory()->create(['name' => 'Grade 7']);
+        $sectionA = Section::factory()->create([
+            'grade_level_id' => $grade->id,
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Rizal',
+        ]);
+        $sectionB = Section::factory()->create([
+            'grade_level_id' => $grade->id,
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Bonifacio',
+        ]);
+
+        foreach ([[$sectionA, 'male'], [$sectionA, 'female'], [$sectionB, 'male']] as [$section, $gender]) {
+            $student = Student::factory()->create([
+                'grade_level_id' => $grade->id,
+                'section_id' => $section->id,
+                'academic_year_id' => $academicYear->id,
+                'gender' => $gender,
+            ]);
+
+            StudentEnrollment::query()->create([
+                'student_id' => $student->id,
+                'academic_year_id' => $academicYear->id,
+                'grade_level_id' => $grade->id,
+                'section_id' => $section->id,
+                'status' => EnrollmentStatus::Enrolled,
+                'enrollment_date' => now()->toDateString(),
+            ]);
+        }
+
+        // A withdrawn enrollment should not be counted.
+        $withdrawnStudent = Student::factory()->create([
+            'grade_level_id' => $grade->id,
+            'section_id' => $sectionB->id,
+            'academic_year_id' => $academicYear->id,
+            'gender' => 'female',
+        ]);
+        StudentEnrollment::query()->create([
+            'student_id' => $withdrawnStudent->id,
+            'academic_year_id' => $academicYear->id,
+            'grade_level_id' => $grade->id,
+            'section_id' => $sectionB->id,
+            'status' => EnrollmentStatus::Withdrawn,
+            'enrollment_date' => now()->toDateString(),
+        ]);
+
+        $preview = app(ReportService::class)->preview('enrollment', now()->toDateString(), now()->toDateString());
+
+        $this->assertSame('Enrollment Report', $preview->title);
+
+        $enrolled = collect($preview->summaryStats)->firstWhere('label', 'Enrolled students')['value'] ?? 0;
+        $this->assertSame(3, $enrolled);
+
+        $this->assertCount(1, $preview->rows);
+        $this->assertSame('Grade 7', $preview->rows[0]['grade']);
+        $this->assertSame(3, $preview->rows[0]['total']);
+        $this->assertSame(2, $preview->rows[0]['male']);
+        $this->assertSame(1, $preview->rows[0]['female']);
+
+        $sectionTable = collect($preview->tables)->firstWhere('title', 'Enrolled per section');
+        $this->assertNotNull($sectionTable);
+        $this->assertCount(2, $sectionTable['rows']);
+        $rizal = collect($sectionTable['rows'])->firstWhere('section', 'Rizal');
+        $this->assertSame(2, $rizal['total']);
+    }
+
+    public function test_enrollment_report_renders_in_livewire(): void
+    {
+        $academicYear = AcademicYear::factory()->create(['is_current' => true]);
+        $grade = GradeLevel::factory()->create(['name' => 'Grade 8']);
+        $section = Section::factory()->create([
+            'grade_level_id' => $grade->id,
+            'academic_year_id' => $academicYear->id,
+            'name' => 'Mabini',
+        ]);
+        $student = Student::factory()->create([
+            'grade_level_id' => $grade->id,
+            'section_id' => $section->id,
+            'academic_year_id' => $academicYear->id,
+        ]);
+        StudentEnrollment::query()->create([
+            'student_id' => $student->id,
+            'academic_year_id' => $academicYear->id,
+            'grade_level_id' => $grade->id,
+            'section_id' => $section->id,
+            'status' => EnrollmentStatus::Enrolled,
+            'enrollment_date' => now()->toDateString(),
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(ReportsIndex::class)
+            ->set('reportType', 'enrollment')
+            ->assertSee('Enrollment Report')
+            ->assertSee('Grade 8')
+            ->assertSee('Mabini');
     }
 
     public function test_admin_can_export_report(): void

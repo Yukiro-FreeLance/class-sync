@@ -4,15 +4,19 @@ namespace App\Services\Reports;
 
 use App\DTOs\Reports\ReportPreview;
 use App\Enums\AttendanceStatus;
+use App\Enums\EnrollmentStatus;
 use App\Enums\StudentStatus;
+use App\Models\AcademicYear;
 use App\Models\AttendancePeriodLog;
 use App\Models\AttendanceRecord;
 use App\Models\AttendanceRemark;
 use App\Models\Student;
+use App\Models\StudentEnrollment;
 use App\Models\Visitor;
 use App\Services\Settings\SettingsService;
 use App\Services\Students\StudentListService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -31,6 +35,7 @@ class ReportService
             'attendance_summary' => 'Attendance Summary',
             'daily_attendance' => 'Daily Attendance',
             'student_list' => 'Student List',
+            'enrollment' => 'Enrollment Report',
             'late_arrivals' => 'Late Arrivals',
             'absent_students' => 'Absent Students',
             'visitor_log' => 'Visitor Log',
@@ -50,6 +55,7 @@ class ReportService
             'attendance_summary' => $this->attendanceSummary($from, $to, $periodLabel, $filters),
             'daily_attendance' => $this->dailyAttendance($from, $to, $periodLabel, $filters),
             'student_list' => $this->studentList('Active students · '.now()->format('M j, Y'), $filters),
+            'enrollment' => $this->enrollmentReport($filters),
             'late_arrivals' => $this->lateArrivals($from, $to, $periodLabel, $filters),
             'absent_students' => $this->absentStudents($from, $to, $periodLabel, $filters),
             'visitor_log' => $this->visitorLog($from, $to, $periodLabel),
@@ -241,6 +247,109 @@ class ReportService
                 ['key' => 'status', 'label' => 'Status', 'align' => 'center'],
             ],
             rows: $rows,
+            totalRows: count($rows),
+        );
+    }
+
+    /**
+     * @param  array{department?: ?int, grade?: ?int, section?: ?int}  $filters
+     */
+    protected function enrollmentReport(array $filters): ReportPreview
+    {
+        $yearId = $this->currentAcademicYearId();
+        $academicYear = $yearId ? AcademicYear::query()->find($yearId) : null;
+        $periodLabel = $academicYear
+            ? 'School Year '.$academicYear->name.' · enrolled students'
+            : 'Enrolled students';
+
+        $enrollments = StudentEnrollment::query()
+            ->where('status', EnrollmentStatus::Enrolled)
+            ->when($yearId, fn (Builder $q) => $q->where('academic_year_id', $yearId))
+            ->when($filters['section'] ?? null, fn (Builder $q, $section) => $q->where('section_id', $section))
+            ->when($filters['grade'] ?? null, fn (Builder $q, $grade) => $q->where('grade_level_id', $grade))
+            ->when($filters['department'] ?? null, fn (Builder $q, $department) => $q->whereHas(
+                'gradeLevel',
+                fn (Builder $gradeLevel) => $gradeLevel->where('department_id', $department),
+            ))
+            ->with(['gradeLevel.department', 'section', 'student'])
+            ->get();
+
+        $countGender = fn (Collection $group, string $key): int => $group
+            ->filter(fn (StudentEnrollment $e) => StudentListService::genderGroupKey($e->student?->gender) === $key)
+            ->count();
+
+        $gradeRows = $enrollments
+            ->groupBy('grade_level_id')
+            ->map(function (Collection $group) use ($countGender) {
+                $gradeLevel = $group->first()?->gradeLevel;
+
+                return [
+                    'grade' => $gradeLevel?->name ?? 'Unassigned',
+                    'department' => $gradeLevel?->department?->name ?? '—',
+                    'male' => $countGender($group, 'male'),
+                    'female' => $countGender($group, 'female'),
+                    'total' => $group->count(),
+                    '_sort' => $gradeLevel?->sort_order ?? 999,
+                ];
+            })
+            ->sortBy('_sort')
+            ->values();
+
+        $rows = $gradeRows->map(fn (array $row) => Arr::except($row, ['_sort']))->all();
+
+        $sectionRows = $enrollments
+            ->groupBy('section_id')
+            ->map(function (Collection $group) use ($countGender) {
+                $section = $group->first()?->section;
+                $gradeLevel = $group->first()?->gradeLevel;
+
+                return [
+                    'grade' => $gradeLevel?->name ?? '—',
+                    'section' => $section?->name ?? 'Unassigned',
+                    'male' => $countGender($group, 'male'),
+                    'female' => $countGender($group, 'female'),
+                    'total' => $group->count(),
+                    '_grade_sort' => $gradeLevel?->sort_order ?? 999,
+                    '_section' => $section?->name ?? '',
+                ];
+            })
+            ->sortBy(['_grade_sort', '_section'])
+            ->values();
+
+        $sectionRowsOut = $sectionRows->map(fn (array $row) => Arr::except($row, ['_grade_sort', '_section']))->all();
+
+        return new ReportPreview(
+            title: 'Enrollment Report',
+            periodLabel: $periodLabel,
+            summaryStats: [
+                ['label' => 'Enrolled students', 'value' => $enrollments->count()],
+                ['label' => 'Year levels', 'value' => $enrollments->pluck('grade_level_id')->filter()->unique()->count()],
+                ['label' => 'Sections', 'value' => $enrollments->pluck('section_id')->filter()->unique()->count()],
+                ['label' => 'Male', 'value' => $countGender($enrollments, 'male')],
+                ['label' => 'Female', 'value' => $countGender($enrollments, 'female')],
+                ['label' => 'Unassigned section', 'value' => $enrollments->whereNull('section_id')->count()],
+            ],
+            columns: [
+                ['key' => 'grade', 'label' => 'Year Level'],
+                ['key' => 'department', 'label' => 'Department'],
+                ['key' => 'male', 'label' => 'Male', 'align' => 'center'],
+                ['key' => 'female', 'label' => 'Female', 'align' => 'center'],
+                ['key' => 'total', 'label' => 'Enrolled', 'align' => 'center'],
+            ],
+            rows: $rows,
+            tables: array_filter([
+                $sectionRowsOut !== [] ? [
+                    'title' => 'Enrolled per section',
+                    'columns' => [
+                        ['key' => 'grade', 'label' => 'Year Level'],
+                        ['key' => 'section', 'label' => 'Section'],
+                        ['key' => 'male', 'label' => 'Male', 'align' => 'center'],
+                        ['key' => 'female', 'label' => 'Female', 'align' => 'center'],
+                        ['key' => 'total', 'label' => 'Enrolled', 'align' => 'center'],
+                    ],
+                    'rows' => $sectionRowsOut,
+                ] : null,
+            ]),
             totalRows: count($rows),
         );
     }
@@ -457,5 +566,11 @@ class ReportService
     public function schoolName(): string
     {
         return $this->settings->get('school_name', config('app.name'), 'general') ?: config('app.name');
+    }
+
+    protected function currentAcademicYearId(): ?int
+    {
+        return AcademicYear::query()->where('is_current', true)->value('id')
+            ?? AcademicYear::query()->orderByDesc('id')->value('id');
     }
 }

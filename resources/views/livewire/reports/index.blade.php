@@ -16,7 +16,7 @@
                     </select>
                 </div>
 
-                @if ($reportType !== 'student_list')
+                @if (! in_array($reportType, ['student_list', 'enrollment']))
                     <div class="grid grid-cols-1 gap-3">
                         <div>
                             <x-input-label value="Date From" />
@@ -29,7 +29,11 @@
                     </div>
                 @else
                     <p class="text-xs text-slate-500 rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2">
-                        Student list shows active students using the scope filters below.
+                        @if ($reportType === 'enrollment')
+                            Enrollment report counts enrolled students for the current school year, broken down by year level and section using the scope filters below.
+                        @else
+                            Student list shows active students using the scope filters below.
+                        @endif
                     </p>
                 @endif
 
