@@ -218,10 +218,10 @@ class Index extends Component
             $classLogs = app(AttendancePeriodService::class)
                 ->logsForSchedule((int) $this->section, $this->classScheduleId, $this->date)
                 ->sortBy([
-                    fn ($log) => StudentListService::genderSortOrder($log->student?->gender),
-                    fn ($log) => mb_strtolower($log->student?->last_name ?? ''),
-                    fn ($log) => mb_strtolower($log->student?->first_name ?? ''),
-                    fn ($log) => mb_strtolower((string) $log->student?->middle_name),
+                    fn ($a, $b) => StudentListService::genderSortOrder($a->student?->gender) <=> StudentListService::genderSortOrder($b->student?->gender),
+                    fn ($a, $b) => mb_strtolower($a->student?->last_name ?? '') <=> mb_strtolower($b->student?->last_name ?? ''),
+                    fn ($a, $b) => mb_strtolower($a->student?->first_name ?? '') <=> mb_strtolower($b->student?->first_name ?? ''),
+                    fn ($a, $b) => mb_strtolower((string) $a->student?->middle_name) <=> mb_strtolower((string) $b->student?->middle_name),
                 ])
                 ->values();
         }

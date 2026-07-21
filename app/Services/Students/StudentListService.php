@@ -284,10 +284,10 @@ class StudentListService
     {
         return $students
             ->sortBy([
-                fn (Student $student) => self::genderSortOrder($student->gender),
-                fn (Student $student) => mb_strtolower($student->last_name),
-                fn (Student $student) => mb_strtolower($student->first_name),
-                fn (Student $student) => mb_strtolower((string) $student->middle_name),
+                fn (Student $a, Student $b) => self::genderSortOrder($a->gender) <=> self::genderSortOrder($b->gender),
+                fn (Student $a, Student $b) => mb_strtolower($a->last_name) <=> mb_strtolower($b->last_name),
+                fn (Student $a, Student $b) => mb_strtolower($a->first_name) <=> mb_strtolower($b->first_name),
+                fn (Student $a, Student $b) => mb_strtolower((string) $a->middle_name) <=> mb_strtolower((string) $b->middle_name),
             ])
             ->values();
     }

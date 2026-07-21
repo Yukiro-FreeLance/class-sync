@@ -788,9 +788,9 @@ class Schedules extends Component
                 ];
             })
             ->sortBy([
-                fn (array $group) => $group['schedule']->subject?->code ?? '',
-                fn (array $group) => substr((string) $group['schedule']->starts_at, 0, 5),
-                fn (array $group) => min($group['day_values']),
+                fn (array $a, array $b) => ($a['schedule']->subject?->code ?? '') <=> ($b['schedule']->subject?->code ?? ''),
+                fn (array $a, array $b) => substr((string) $a['schedule']->starts_at, 0, 5) <=> substr((string) $b['schedule']->starts_at, 0, 5),
+                fn (array $a, array $b) => min($a['day_values']) <=> min($b['day_values']),
             ])
             ->values();
     }
