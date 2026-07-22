@@ -37,6 +37,9 @@ class Schedules extends Component
     #[Url]
     public string $strand = '';
 
+    #[Url]
+    public string $section = '';
+
     public ?int $academicYearId = null;
 
     public string $semester = 'first';
@@ -122,6 +125,7 @@ class Schedules extends Component
         $this->department = '';
         $this->grade = '';
         $this->strand = '';
+        $this->section = '';
         $this->semester = Semester::First->value;
         $this->academicYearId = AcademicYear::query()->where('is_current', true)->value('id')
             ?? AcademicYear::query()->orderByDesc('id')->value('id');
@@ -237,6 +241,7 @@ class Schedules extends Component
     {
         $this->grade = '';
         $this->strand = '';
+        $this->section = '';
         $this->formCourseId = null;
         $this->sectionId = null;
         $this->ensureValidSemester();
@@ -245,6 +250,7 @@ class Schedules extends Component
     public function updatedGrade(): void
     {
         $this->strand = '';
+        $this->section = '';
         $this->formCourseId = null;
         $this->sectionId = null;
     }
@@ -252,6 +258,14 @@ class Schedules extends Component
     public function updatedStrand(): void
     {
         $this->formCourseId = $this->strand ? (int) $this->strand : null;
+
+        if ($this->section) {
+            $section = Section::query()->find($this->section);
+
+            if ($this->strand && (int) ($section?->course_id) !== (int) $this->strand) {
+                $this->section = '';
+            }
+        }
 
         if ($this->sectionId) {
             $section = Section::query()->find($this->sectionId);
@@ -1062,6 +1076,20 @@ class Schedules extends Component
             ->orderBy('name')
             ->get();
 
+        $filterSections = Section::query()
+            ->with(['gradeLevel.department', 'course'])
+            ->when($this->grade, fn ($q) => $q->where('grade_level_id', $this->grade))
+            ->when($this->department, fn ($q) => $q->whereHas('gradeLevel', fn ($g) => $g->where('department_id', $this->department)))
+            ->when($this->strand, fn ($q) => $q->where('course_id', $this->strand))
+            ->when($this->academicYearId, fn ($q) => $q->where(function ($query) {
+                $query->where('academic_year_id', $this->academicYearId)
+                    ->orWhereNull('academic_year_id');
+            }))
+            ->orderBy('grade_level_id')
+            ->orderBy('course_id')
+            ->orderBy('name')
+            ->get();
+
         $departmentId = $this->sectionDepartmentId();
         $showStrandFilter = $this->isSeniorHighFilterContext();
 
@@ -1081,6 +1109,7 @@ class Schedules extends Component
             ->when($this->grade, fn ($q) => $q->whereHas('section', fn ($s) => $s->where('grade_level_id', $this->grade)))
             ->when($this->department, fn ($q) => $q->whereHas('section.gradeLevel', fn ($g) => $g->where('department_id', $this->department)))
             ->when($this->strand, fn ($q) => $q->whereHas('section', fn ($s) => $s->where('course_id', $this->strand)))
+            ->when($this->section, fn ($q) => $q->where('section_id', $this->section))
             ->orderBy('day_of_week')
             ->orderBy('starts_at')
             ->get();
@@ -1107,6 +1136,7 @@ class Schedules extends Component
                 ->get(),
             'years' => AcademicYear::query()->orderByDesc('start_date')->get(),
             'sections' => $sections,
+            'filterSections' => $filterSections,
             'subjects' => Subject::query()
                 ->active()
                 ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))

@@ -16,8 +16,8 @@
     <div class="panel mb-5" data-schedule-tour="filters">
         <div @class([
             'grid sm:grid-cols-2 gap-3 items-end',
-            'lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]' => !$showStrandFilter,
-            'lg:grid-cols-[repeat(6,minmax(0,1fr))_auto]' => $showStrandFilter,
+            'lg:grid-cols-[repeat(6,minmax(0,1fr))_auto]' => !$showStrandFilter,
+            'lg:grid-cols-[repeat(7,minmax(0,1fr))_auto]' => $showStrandFilter,
         ])>
             <div>
                 <label class="text-[11px] font-medium text-slate-500 mb-1 block">Academic Year</label>
@@ -66,6 +66,15 @@
                     </select>
                 </div>
             @endif
+            <div>
+                <label class="text-[11px] font-medium text-slate-500 mb-1 block">Section</label>
+                <select wire:model.live="section" class="select-field">
+                    <option value="">All sections</option>
+                    @foreach ($filterSections as $filterSection)
+                        <option value="{{ $filterSection->id }}">{{ $filterSection->display_label }}</option>
+                    @endforeach
+                </select>
+            </div>
             <button type="button" wire:click="resetFilters" class="btn-secondary text-sm whitespace-nowrap">
                 Reset filters
             </button>

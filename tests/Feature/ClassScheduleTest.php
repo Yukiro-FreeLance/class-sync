@@ -326,9 +326,53 @@ class ClassScheduleTest extends TestCase
             ->test(Schedules::class)
             ->set('department', '1')
             ->set('grade', '1')
+            ->set('section', (string) $this->section->id)
             ->call('resetFilters')
             ->assertSet('department', '')
-            ->assertSet('grade', '');
+            ->assertSet('grade', '')
+            ->assertSet('section', '');
+    }
+
+    public function test_schedules_can_filter_by_section(): void
+    {
+        $otherSection = Section::factory()->create([
+            'grade_level_id' => $this->section->grade_level_id,
+            'academic_year_id' => $this->academicYear->id,
+            'name' => 'Other Section',
+        ]);
+
+        ClassSchedule::query()->create([
+            'academic_year_id' => $this->academicYear->id,
+            'section_id' => $this->section->id,
+            'subject_id' => $this->subject->id,
+            'teacher_id' => $this->teacher->id,
+            'semester' => Semester::First,
+            'day_of_week' => DayOfWeek::Monday,
+            'starts_at' => '08:00:00',
+            'ends_at' => '09:00:00',
+        ]);
+
+        ClassSchedule::query()->create([
+            'academic_year_id' => $this->academicYear->id,
+            'section_id' => $otherSection->id,
+            'subject_id' => $this->subject->id,
+            'teacher_id' => $this->teacher->id,
+            'semester' => Semester::First,
+            'day_of_week' => DayOfWeek::Tuesday,
+            'starts_at' => '09:00:00',
+            'ends_at' => '10:00:00',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(Schedules::class)
+            ->set('academicYearId', $this->academicYear->id)
+            ->set('semester', Semester::First->value)
+            ->set('section', (string) $this->section->id)
+            ->assertViewHas('schedules', function ($schedules) use ($otherSection) {
+                return $schedules->count() === 1
+                    && (int) $schedules->first()->section_id === (int) $this->section->id
+                    && $schedules->where('section_id', $otherSection->id)->isEmpty();
+            });
     }
 
     public function test_toggle_day_enables_and_disables_day_slot(): void
