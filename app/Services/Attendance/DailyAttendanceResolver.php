@@ -11,13 +11,19 @@ use Illuminate\Support\Collection;
 
 class DailyAttendanceResolver
 {
-    /** @var array<string, int> */
-    private const STATUS_PRIORITY = [
-        AttendanceStatus::Present->value => 5,
-        AttendanceStatus::Late->value => 4,
+    /**
+     * Higher score = worse attendance outcome for the day.
+     * Dashboard daily status keeps the most severe mark across gate + class periods
+     * so an Absent is not upgraded to Excused/Present.
+     *
+     * @var array<string, int>
+     */
+    private const STATUS_SEVERITY = [
+        AttendanceStatus::Absent->value => 5,
+        AttendanceStatus::HalfDay->value => 4,
         AttendanceStatus::Excused->value => 3,
-        AttendanceStatus::HalfDay->value => 2,
-        AttendanceStatus::Absent->value => 1,
+        AttendanceStatus::Late->value => 2,
+        AttendanceStatus::Present->value => 1,
     ];
 
     public function remarkCodeToStatus(?string $code): ?AttendanceStatus
@@ -26,11 +32,19 @@ class DailyAttendanceResolver
     }
 
     /**
-     * Gate attendance takes precedence over class logs for the same day.
+     * Keep the worse status when both gate and class marks exist.
      */
     public function mergeStatuses(?AttendanceStatus $gate, ?AttendanceStatus $class): ?AttendanceStatus
     {
-        return $gate ?? $class;
+        if ($gate === null) {
+            return $class;
+        }
+
+        if ($class === null) {
+            return $gate;
+        }
+
+        return $this->worseStatus($gate, $class);
     }
 
     /**
@@ -38,8 +52,16 @@ class DailyAttendanceResolver
      */
     public function bestStatusFromRemarks(iterable $remarks): ?AttendanceStatus
     {
-        $best = null;
-        $bestPriority = 0;
+        return $this->worstStatusFromRemarks($remarks);
+    }
+
+    /**
+     * @param  iterable<int, AttendanceRemark|null>  $remarks
+     */
+    public function worstStatusFromRemarks(iterable $remarks): ?AttendanceStatus
+    {
+        $worst = null;
+        $worstSeverity = 0;
 
         foreach ($remarks as $remark) {
             $status = $this->remarkCodeToStatus($remark?->code);
@@ -48,15 +70,23 @@ class DailyAttendanceResolver
                 continue;
             }
 
-            $priority = self::STATUS_PRIORITY[$status->value] ?? 0;
+            $severity = self::STATUS_SEVERITY[$status->value] ?? 0;
 
-            if ($priority > $bestPriority) {
-                $bestPriority = $priority;
-                $best = $status;
+            if ($severity > $worstSeverity) {
+                $worstSeverity = $severity;
+                $worst = $status;
             }
         }
 
-        return $best;
+        return $worst;
+    }
+
+    public function worseStatus(AttendanceStatus $left, AttendanceStatus $right): AttendanceStatus
+    {
+        $leftSeverity = self::STATUS_SEVERITY[$left->value] ?? 0;
+        $rightSeverity = self::STATUS_SEVERITY[$right->value] ?? 0;
+
+        return $rightSeverity > $leftSeverity ? $right : $left;
     }
 
     /**
@@ -85,7 +115,7 @@ class DailyAttendanceResolver
 
         return $ids->mapWithKeys(function (int $studentId) use ($gateRecords, $classLogs) {
             $gateStatus = $gateRecords->get($studentId)?->status;
-            $classStatus = $this->bestStatusFromRemarks(
+            $classStatus = $this->worstStatusFromRemarks(
                 $classLogs->get($studentId, collect())->pluck('remark'),
             );
 
@@ -155,7 +185,7 @@ class DailyAttendanceResolver
 
         return $keys->mapWithKeys(function (string $key) use ($gateRecords, $classLogs) {
             $gateStatus = $gateRecords->get($key)?->first()?->status;
-            $classStatus = $this->bestStatusFromRemarks(
+            $classStatus = $this->worstStatusFromRemarks(
                 $classLogs->get($key, collect())->pluck('remark'),
             );
 
