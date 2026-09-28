@@ -1,9 +1,27 @@
 <div>
+    <style>
+        .report-scroll {
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        .report-scroll .data-table {
+            width: max-content;
+            min-width: 100%;
+        }
+
+        .report-scroll .data-table th,
+        .report-scroll .data-table td {
+            padding: 0.55rem 0.75rem;
+            white-space: nowrap;
+        }
+    </style>
+
     <x-page-header title="Reports" subtitle="Generate, preview, and export attendance reports" />
 
-    <div class="grid xl:grid-cols-[320px_1fr] gap-5 items-start">
+    <div class="grid xl:grid-cols-[320px_minmax(0,1fr)] gap-5 items-start">
         {{-- Filters --}}
-        <aside class="xl:sticky xl:top-24 space-y-4">
+        <aside class="xl:sticky xl:top-24 space-y-4 w-full xl:w-[320px] shrink-0">
             <div class="panel space-y-4">
                 <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Report settings</h3>
 
@@ -131,13 +149,13 @@
         </aside>
 
         {{-- Preview --}}
-        <div class="space-y-4">
+        <div class="space-y-4 min-w-0">
             @if ($previewError)
                 <div class="panel border-red-200 bg-red-50 dark:bg-red-900/10 text-sm text-red-700 dark:text-red-300">
                     {{ $previewError }}
                 </div>
             @elseif ($preview)
-                <div class="panel">
+                <div class="panel min-w-0 overflow-hidden">
                     <div class="flex flex-wrap items-start justify-between gap-3 mb-5 pb-4 border-b border-surface-border dark:border-slate-800">
                         <div>
                             <p class="text-[11px] font-semibold uppercase tracking-wide text-brand-600">{{ $schoolName }}</p>
@@ -148,7 +166,7 @@
                     </div>
 
                     @if ($preview->summaryStats !== [])
-                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 mb-6">
                             @foreach ($preview->summaryStats as $stat)
                                 <div class="rounded-xl bg-slate-50 dark:bg-slate-800/50 px-3 py-3 text-center">
                                     <p class="text-lg font-bold text-slate-900 dark:text-white">{{ $stat['value'] }}</p>
@@ -172,10 +190,10 @@
                     @endif
 
                     @if ($preview->charts !== [])
-                        <div class="grid lg:grid-cols-2 gap-4 mb-6">
+                        <div class="grid lg:grid-cols-2 gap-4 mb-6 min-w-0">
                             @foreach ($preview->charts as $chart)
                                 <div
-                                    @class(['rounded-xl border border-surface-border dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 p-4', 'lg:col-span-2' => ! empty($chart['wide'])])
+                                    @class(['min-w-0 rounded-xl border border-surface-border dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 p-4', 'lg:col-span-2' => ! empty($chart['wide'])])
                                     wire:key="report-chart-{{ $reportType }}-{{ $dateFrom }}-{{ $dateTo }}-{{ $department }}-{{ $grade }}-{{ $section }}-{{ implode('-', $statuses) }}-{{ $chart['key'] }}"
                                     wire:ignore
                                     x-data="reportBarChart(@js($chart['labels']), @js($chart['datasets']), @js($chart['yMax'] ?? null), @js($chart['suffix'] ?? ''))"
@@ -221,7 +239,7 @@
                                     @if (! empty($table['note']))
                                         <p class="text-xs italic text-slate-500 mb-2">{{ $table['note'] }}</p>
                                     @endif
-                                    <div class="overflow-x-auto">
+                                    <div class="report-scroll">
                                         <table class="w-full data-table text-sm">
                                             <thead>
                                                 <tr>
@@ -254,7 +272,7 @@
                                     <span class="text-xs text-slate-400">{{ $preview->totalRows }} row(s)</span>
                                 @endif
                             </div>
-                            <div class="overflow-x-auto mb-6">
+                            <div class="report-scroll mb-6">
                                 <table class="w-full data-table text-sm">
                                     <thead>
                                         <tr>
@@ -286,7 +304,7 @@
                                 @if (! empty($table['note']))
                                     <p class="text-xs italic text-slate-500 mb-2">{{ $table['note'] }}</p>
                                 @endif
-                                <div class="overflow-x-auto">
+                                <div class="report-scroll">
                                     <table class="w-full data-table text-sm">
                                         <thead>
                                             <tr>
