@@ -34,6 +34,7 @@ class ReportService
         return [
             'attendance_summary' => 'Attendance Summary',
             'daily_attendance' => 'Daily Attendance',
+            'research_attendance' => 'Research Attendance Report',
             'student_list' => 'Student List',
             'enrollment' => 'Enrollment Report',
             'late_arrivals' => 'Late Arrivals',
@@ -43,9 +44,27 @@ class ReportService
     }
 
     /**
-     * @param  array{department?: ?int, grade?: ?int, section?: ?int}  $filters
+     * Adopted attendance interpretation used by the research report.
+     * 77.29% falls in 75.00–79.99 and is classified as Low.
+     *
+     * @return array{rating: string, interpretation: string, color: string}
      */
-    public function preview(string $type, string $dateFrom, string $dateTo, array $filters = []): ReportPreview
+    public function interpretAttendanceRate(float $rate): array
+    {
+        return match (true) {
+            $rate >= 90 => ['rating' => 'Outstanding', 'interpretation' => 'Very High', 'color' => '#059669'],
+            $rate >= 85 => ['rating' => 'Very Satisfactory', 'interpretation' => 'High', 'color' => '#10b981'],
+            $rate >= 80 => ['rating' => 'Satisfactory', 'interpretation' => 'Average', 'color' => '#d97706'],
+            $rate >= 75 => ['rating' => 'Fairly Satisfactory', 'interpretation' => 'Low', 'color' => '#ea580c'],
+            default => ['rating' => 'Did Not Meet Expectations', 'interpretation' => 'Very Low', 'color' => '#dc2626'],
+        };
+    }
+
+    /**
+     * @param  array{department?: ?int, grade?: ?int, section?: ?int}  $filters
+     * @param  array{study_context?: ?string}  $options
+     */
+    public function preview(string $type, string $dateFrom, string $dateTo, array $filters = [], array $options = []): ReportPreview
     {
         $from = Carbon::parse($dateFrom)->startOfDay();
         $to = Carbon::parse($dateTo)->endOfDay();
@@ -54,6 +73,7 @@ class ReportService
         return match ($type) {
             'attendance_summary' => $this->attendanceSummary($from, $to, $periodLabel, $filters),
             'daily_attendance' => $this->dailyAttendance($from, $to, $periodLabel, $filters),
+            'research_attendance' => $this->researchAttendance($from, $to, $periodLabel, $filters, $options),
             'student_list' => $this->studentList('Active students · '.now()->format('M j, Y'), $filters),
             'enrollment' => $this->enrollmentReport($filters),
             'late_arrivals' => $this->lateArrivals($from, $to, $periodLabel, $filters),
@@ -502,6 +522,296 @@ class ReportService
             rows: $rows,
             totalRows: count($rows),
         );
+    }
+
+    /**
+     * Narrative research report: identified learners, attendance rate,
+     * adopted interpretation, grade distribution, and bar-chart series.
+     *
+     * @param  array{department?: ?int, grade?: ?int, section?: ?int}  $filters
+     * @param  array{study_context?: ?string}  $options
+     */
+    protected function researchAttendance(Carbon $from, Carbon $to, string $periodLabel, array $filters, array $options): ReportPreview
+    {
+        $classLogs = $this->classLogQuery($from, $to, $filters)
+            ->with(['remark', 'student.gradeLevel', 'student.section', 'section.gradeLevel'])
+            ->get();
+
+        $usesClassLogs = $classLogs->isNotEmpty();
+
+        $records = $usesClassLogs
+            ? $classLogs
+            : $this->gateQuery($from, $to, $filters)->with(['student.gradeLevel', 'student.section'])->get();
+
+        $records = $records->filter(fn ($record) => $record->student_id && $record->student)->values();
+
+        $sourceNote = $usesClassLogs
+            ? 'Rates use class attendance. A record counts as attended when its remark is set to count as present (Present and Late, by default).'
+            : 'Rates use gate check-ins. Present and Late count as attended.';
+
+        $learnerRows = $records
+            ->groupBy('student_id')
+            ->map(function (Collection $logs) use ($usesClassLogs) {
+                $record = $logs->first();
+                $student = $record->student;
+                $gradeLevel = $student->gradeLevel;
+                if ($gradeLevel === null && $record instanceof AttendancePeriodLog) {
+                    $gradeLevel = $record->section?->gradeLevel;
+                }
+                $present = $usesClassLogs
+                    ? $logs->filter(fn ($log) => (bool) $log->remark?->counts_as_present)->count()
+                    : $logs->filter(fn ($record) => in_array($record->status, [AttendanceStatus::Present, AttendanceStatus::Late], true))->count();
+                $total = $logs->count();
+                $rate = $total > 0 ? round(($present / $total) * 100, 2) : 0.0;
+                $band = $this->interpretAttendanceRate($rate);
+
+                return [
+                    'student_number' => $student->student_number,
+                    'name' => $student->list_name,
+                    'grade' => $gradeLevel?->name ?? 'Unassigned',
+                    'section' => $student->section?->name ?? '—',
+                    'present' => $present,
+                    'records' => $total,
+                    'rate' => number_format($rate, 2).'%',
+                    'interpretation' => $band['interpretation'],
+                    '_rate' => $rate,
+                    '_sort' => $gradeLevel?->sort_order ?? 999,
+                    '_grade_id' => $gradeLevel?->id ?? 0,
+                ];
+            })
+            ->sortBy(['_sort', 'name'])
+            ->values();
+
+        $presentTotal = (int) $learnerRows->sum('present');
+        $recordTotal = (int) $learnerRows->sum('records');
+        $learnerCount = $learnerRows->count();
+        $overallRate = $recordTotal > 0 ? round(($presentTotal / $recordTotal) * 100, 2) : 0.0;
+        $overallBand = $this->interpretAttendanceRate($overallRate);
+
+        $gradeRows = $learnerRows
+            ->groupBy('_grade_id')
+            ->map(function (Collection $group) {
+                $present = (int) $group->sum('present');
+                $total = (int) $group->sum('records');
+                $rate = $total > 0 ? round(($present / $total) * 100, 2) : 0.0;
+                $band = $this->interpretAttendanceRate($rate);
+
+                return [
+                    'grade' => $group->first()['grade'],
+                    'learners' => $group->count(),
+                    'present' => $present,
+                    'records' => $total,
+                    'rate' => number_format($rate, 2).'%',
+                    'interpretation' => $band['interpretation'],
+                    '_rate' => $rate,
+                    '_sort' => $group->first()['_sort'],
+                    '_color' => $band['color'],
+                ];
+            })
+            ->sortBy('_sort')
+            ->values();
+
+        $scaleRows = [
+            ['range' => '90.00% – 100%', 'rating' => 'Outstanding', 'interpretation' => 'Very High'],
+            ['range' => '85.00% – 89.99%', 'rating' => 'Very Satisfactory', 'interpretation' => 'High'],
+            ['range' => '80.00% – 84.99%', 'rating' => 'Satisfactory', 'interpretation' => 'Average'],
+            ['range' => '75.00% – 79.99%', 'rating' => 'Fairly Satisfactory', 'interpretation' => 'Low'],
+            ['range' => 'Below 75.00%', 'rating' => 'Did Not Meet Expectations', 'interpretation' => 'Very Low'],
+        ];
+
+        $narrative = $learnerCount === 0
+            ? 'No attendance records were found for '.$periodLabel.'. No learners could be identified in the selected scope.'
+            : $this->researchNarrative($learnerCount, $overallRate, $overallBand['interpretation'], $gradeRows->all(), $periodLabel, $options['study_context'] ?? null);
+
+        $charts = $learnerCount === 0 ? [] : $this->researchCharts($from, $to, $records, $usesClassLogs, $gradeRows);
+
+        $detailRows = $learnerRows->map(fn (array $row) => Arr::except($row, ['_rate', '_sort', '_grade_id']))->all();
+        $gradeTableRows = $gradeRows->map(fn (array $row) => Arr::except($row, ['_rate', '_sort', '_color']))->all();
+
+        return new ReportPreview(
+            title: 'Research Attendance Report',
+            periodLabel: $periodLabel,
+            summaryStats: [
+                ['label' => 'Identified learners', 'value' => $learnerCount],
+                ['label' => 'Attendance rate', 'value' => $recordTotal > 0 ? number_format($overallRate, 2).'%' : '—', 'hint' => $recordTotal > 0 ? $overallBand['rating'] : null],
+                ['label' => 'Interpretation', 'value' => $recordTotal > 0 ? $overallBand['interpretation'] : '—'],
+                ['label' => 'Attended records', 'value' => $presentTotal],
+                ['label' => 'Total records', 'value' => $recordTotal],
+                ['label' => 'Grade levels', 'value' => $gradeRows->count()],
+            ],
+            columns: [
+                ['key' => 'student_number', 'label' => 'Student No.'],
+                ['key' => 'name', 'label' => 'Learner'],
+                ['key' => 'grade', 'label' => 'Grade'],
+                ['key' => 'section', 'label' => 'Section'],
+                ['key' => 'present', 'label' => 'Attended', 'align' => 'center'],
+                ['key' => 'records', 'label' => 'Records', 'align' => 'center'],
+                ['key' => 'rate', 'label' => 'Rate', 'align' => 'center'],
+                ['key' => 'interpretation', 'label' => 'Interpretation', 'align' => 'center'],
+            ],
+            rows: $detailRows,
+            tables: array_values(array_filter([
+                $gradeTableRows !== [] ? [
+                    'title' => 'Table 1. Attendance rate by grade level',
+                    'columns' => [
+                        ['key' => 'grade', 'label' => 'Grade'],
+                        ['key' => 'learners', 'label' => 'Learners', 'align' => 'center'],
+                        ['key' => 'present', 'label' => 'Attended', 'align' => 'center'],
+                        ['key' => 'records', 'label' => 'Records', 'align' => 'center'],
+                        ['key' => 'rate', 'label' => 'Attendance rate', 'align' => 'center'],
+                        ['key' => 'interpretation', 'label' => 'Interpretation', 'align' => 'center'],
+                    ],
+                    'rows' => $gradeTableRows,
+                ] : null,
+                [
+                    'title' => 'Table 2. Adopted attendance interpretation',
+                    'columns' => [
+                        ['key' => 'range', 'label' => 'Attendance rate'],
+                        ['key' => 'rating', 'label' => 'Descriptive rating'],
+                        ['key' => 'interpretation', 'label' => 'Interpretation'],
+                    ],
+                    'rows' => $scaleRows,
+                ],
+            ])),
+            totalRows: count($detailRows),
+            charts: $charts,
+            narrative: $narrative,
+            narrativeNote: $learnerCount === 0 ? null : $sourceNote,
+            rowsTitle: $detailRows !== [] ? 'Table 3. Attendance of identified learners' : null,
+        );
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $gradeRows
+     */
+    protected function researchNarrative(int $learnerCount, float $rate, string $interpretation, array $gradeRows, string $periodLabel, ?string $studyContext): string
+    {
+        $context = trim(strip_tags((string) $studyContext));
+        $context = rtrim($context, " \t\n\r\0\x0B.");
+        if (mb_strlen($context) > 180) {
+            $context = rtrim(mb_substr($context, 0, 180));
+        }
+
+        $examined = $context !== '' ? $context : 'during '.$periodLabel;
+        $learnerLabel = $learnerCount.' identified '.str('learner')->plural($learnerCount);
+
+        return 'The attendance records of the '.$learnerLabel.' were examined '.$examined
+            .'. As shown in Table 1, the overall attendance rate was '.number_format($rate, 2)
+            .'%, classified as '.$interpretation.' based on the adopted attendance interpretation. '
+            .$this->describeGradeDistribution($gradeRows);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $gradeRows
+     */
+    protected function describeGradeDistribution(array $gradeRows): string
+    {
+        $parts = [];
+
+        foreach (array_values($gradeRows) as $index => $grade) {
+            $count = (int) $grade['learners'];
+            $countLabel = $index === 0
+                ? $count.' '.str('learner')->plural($count)
+                : (string) $count;
+            $parts[] = $grade['grade'].' ('.$countLabel.')';
+        }
+
+        $list = match (count($parts)) {
+            0 => 'no grade level',
+            1 => $parts[0],
+            2 => $parts[0].' and '.$parts[1],
+            default => implode(', ', array_slice($parts, 0, -1)).', and '.$parts[array_key_last($parts)],
+        };
+
+        if (count($parts) <= 1) {
+            return 'The learners were distributed in '.$list.'.';
+        }
+
+        return 'The learners were distributed across '.$list.'.';
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $records
+     * @param  Collection<int, array<string, mixed>>  $gradeRows
+     * @return list<array<string, mixed>>
+     */
+    protected function researchCharts(Carbon $from, Carbon $to, Collection $records, bool $usesClassLogs, Collection $gradeRows): array
+    {
+        $gradeLabels = $gradeRows->pluck('grade')->all();
+        $gradeRates = $gradeRows->pluck('_rate')->map(fn ($rate) => (float) $rate)->all();
+        $gradeColors = $gradeRows->pluck('_color')->all();
+        $learnerCounts = $gradeRows->pluck('learners')->map(fn ($count) => (int) $count)->all();
+
+        $daySpan = (int) abs($from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay())) + 1;
+        $byPeriod = $daySpan <= 45;
+
+        $trendGroups = $records->groupBy(function ($record) use ($byPeriod) {
+            $date = $record->date instanceof Carbon ? $record->date : Carbon::parse($record->date);
+
+            return $byPeriod ? $date->toDateString() : $date->format('Y-m');
+        })->sortKeys();
+
+        $trendLabels = [];
+        $trendRates = [];
+        $trendColors = [];
+
+        foreach ($trendGroups as $key => $group) {
+            $present = $usesClassLogs
+                ? $group->filter(fn ($log) => (bool) $log->remark?->counts_as_present)->count()
+                : $group->filter(fn ($record) => in_array($record->status, [AttendanceStatus::Present, AttendanceStatus::Late], true))->count();
+            $total = $group->count();
+            $rate = $total > 0 ? round(($present / $total) * 100, 2) : 0.0;
+            $date = $byPeriod ? Carbon::parse($key) : Carbon::parse($key.'-01');
+
+            $trendLabels[] = $byPeriod ? $date->format('M j') : $date->format('M Y');
+            $trendRates[] = $rate;
+            $trendColors[] = $this->interpretAttendanceRate($rate)['color'];
+        }
+
+        return [
+            [
+                'key' => 'grade_rate',
+                'title' => 'Attendance rate by grade',
+                'subtitle' => 'Bar height is the attendance rate of identified learners in each grade',
+                'labels' => $gradeLabels,
+                'datasets' => [[
+                    'label' => 'Attendance rate',
+                    'data' => $gradeRates,
+                    'colors' => $gradeColors,
+                ]],
+                'yMax' => 100,
+                'suffix' => '%',
+            ],
+            [
+                'key' => 'grade_learners',
+                'title' => 'Identified learners by grade',
+                'subtitle' => 'How the examined learners are distributed across grade levels',
+                'labels' => $gradeLabels,
+                'datasets' => [[
+                    'label' => 'Learners',
+                    'data' => $learnerCounts,
+                    'colors' => '#7c3aed',
+                ]],
+                'yMax' => null,
+                'suffix' => '',
+            ],
+            [
+                'key' => 'trend',
+                'title' => $byPeriod ? 'Daily attendance rate' : 'Monthly attendance rate',
+                'subtitle' => $byPeriod
+                    ? 'Each bar is a day that has attendance records'
+                    : 'Each bar is a month that has attendance records',
+                'labels' => $trendLabels,
+                'datasets' => [[
+                    'label' => 'Attendance rate',
+                    'data' => $trendRates,
+                    'colors' => $trendColors,
+                ]],
+                'yMax' => 100,
+                'suffix' => '%',
+                'wide' => true,
+            ],
+        ];
     }
 
     /**

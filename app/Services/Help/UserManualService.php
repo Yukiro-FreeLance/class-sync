@@ -215,9 +215,10 @@ class UserManualService
                         'title' => 'Generate a Report',
                         'steps' => [
                             'Go to Reports in the sidebar.',
-                            'Choose a report type: daily summary, weekly, monthly, yearly, or student list.',
-                            'Set the date range and scope filters (department, grade, section).',
-                            'Preview the results on screen, then export as PDF, Excel, or CSV.',
+                            'Choose a report type, including Research Attendance Report for a narrative write-up, bar graphs, and grade distribution.',
+                            'Filter by a start and end date, or switch Period to Month for a full calendar month.',
+                            'On the research report, add an optional study context such as “before the implementation of the LAKBAY-GABAY Program”. The narrative classifies the attendance rate as Very High, High, Average, Low, or Very Low.',
+                            'Preview the results on screen, then export the table as Excel or CSV.',
                         ],
                     ],
                 ],

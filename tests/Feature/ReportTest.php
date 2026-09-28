@@ -242,4 +242,147 @@ class ReportTest extends TestCase
             ->assertOk()
             ->assertDownload();
     }
+
+    public function test_research_attendance_report_writes_narrative_and_charts(): void
+    {
+        $service = app(ReportService::class);
+
+        $this->assertSame('Low', $service->interpretAttendanceRate(77.29)['interpretation']);
+        $this->assertSame('Very High', $service->interpretAttendanceRate(90)['interpretation']);
+        $this->assertSame('Average', $service->interpretAttendanceRate(80)['interpretation']);
+        $this->assertSame('Very Low', $service->interpretAttendanceRate(74.99)['interpretation']);
+
+        $from = Carbon::today()->subDays(3)->toDateString();
+        $to = Carbon::today()->toDateString();
+        $grade7 = GradeLevel::factory()->create(['name' => 'Grade 7', 'sort_order' => 7]);
+        $grade8 = GradeLevel::factory()->create(['name' => 'Grade 8', 'sort_order' => 8]);
+        $section7 = Section::factory()->create(['grade_level_id' => $grade7->id, 'name' => 'Rizal']);
+        $section8 = Section::factory()->create(['grade_level_id' => $grade8->id, 'name' => 'Mabini']);
+        $present = AttendanceRemark::query()->where('counts_as_present', true)->first();
+        $absent = AttendanceRemark::query()->where('counts_as_present', false)->first();
+
+        $students = [
+            Student::factory()->create([
+                'grade_level_id' => $grade7->id,
+                'section_id' => $section7->id,
+                'last_name' => 'Alpha',
+            ]),
+            Student::factory()->create([
+                'grade_level_id' => $grade8->id,
+                'section_id' => $section8->id,
+                'last_name' => 'Beta',
+            ]),
+        ];
+
+        foreach ($students as $student) {
+            foreach (range(0, 2) as $offset) {
+                AttendancePeriodLog::query()->create([
+                    'student_id' => $student->id,
+                    'section_id' => $student->section_id,
+                    'attendance_remark_id' => $present->id,
+                    'date' => Carbon::today()->subDays($offset)->toDateString(),
+                ]);
+            }
+
+            AttendancePeriodLog::query()->create([
+                'student_id' => $student->id,
+                'section_id' => $student->section_id,
+                'attendance_remark_id' => $absent->id,
+                'date' => Carbon::today()->subDays(3)->toDateString(),
+            ]);
+        }
+
+        $preview = $service->preview('research_attendance', $from, $to, [], [
+            'study_context' => 'before the implementation of the LAKBAY-GABAY Program',
+        ]);
+
+        $this->assertSame('Research Attendance Report', $preview->title);
+        $this->assertStringContainsString('2 identified learners', $preview->narrative);
+        $this->assertStringContainsString('before the implementation of the LAKBAY-GABAY Program', $preview->narrative);
+        $this->assertStringContainsString('75.00%', $preview->narrative);
+        $this->assertStringContainsString('classified as Low', $preview->narrative);
+        $this->assertStringContainsString('Grade 7 (1 learner)', $preview->narrative);
+        $this->assertStringContainsString('Grade 8 (1)', $preview->narrative);
+        $this->assertCount(3, $preview->charts);
+        $this->assertSame('Attendance rate by grade', $preview->charts[0]['title']);
+        $this->assertSame([75.0, 75.0], $preview->charts[0]['datasets'][0]['data']);
+        $this->assertSame([1, 1], $preview->charts[1]['datasets'][0]['data']);
+        $this->assertCount(2, $preview->rows);
+        $this->assertSame('Low', $preview->rows[0]['interpretation']);
+
+        $table = collect($preview->tables)->firstWhere('title', 'Table 1. Attendance rate by grade level');
+        $this->assertNotNull($table);
+        $this->assertSame('Grade 7', $table['rows'][0]['grade']);
+        $this->assertSame(1, $table['rows'][0]['learners']);
+        $this->assertNotNull(collect($preview->tables)->firstWhere('title', 'Table 2. Adopted attendance interpretation'));
+
+        Livewire::actingAs($this->admin)
+            ->test(ReportsIndex::class)
+            ->set('reportType', 'research_attendance')
+            ->set('dateFrom', $from)
+            ->set('dateTo', $to)
+            ->set('studyContext', 'before the implementation of the LAKBAY-GABAY Program')
+            ->assertSee('Attendance rate by grade')
+            ->assertSee('Identified learners by grade')
+            ->assertSee('Table 1. Attendance rate by grade level')
+            ->assertSee('Table 3. Attendance of identified learners')
+            ->assertSee('classified as Low')
+            ->assertSee('LAKBAY-GABAY Program');
+    }
+
+    public function test_research_attendance_report_uses_gate_records_when_class_logs_are_absent(): void
+    {
+        $today = Carbon::today()->toDateString();
+        $grade = GradeLevel::factory()->create(['name' => 'Grade 10', 'sort_order' => 10]);
+        $student = Student::factory()->create([
+            'grade_level_id' => $grade->id,
+            'last_name' => 'GateOnly',
+        ]);
+
+        AttendanceRecord::query()->create([
+            'student_id' => $student->id,
+            'user_id' => $this->admin->id,
+            'date' => $today,
+            'time_in' => '07:30:00',
+            'status' => AttendanceStatus::Present,
+            'method' => \App\Enums\AttendanceMethod::Manual,
+        ]);
+        AttendanceRecord::query()->create([
+            'student_id' => $student->id,
+            'user_id' => $this->admin->id,
+            'date' => Carbon::yesterday()->toDateString(),
+            'time_in' => '08:00:00',
+            'status' => AttendanceStatus::Absent,
+            'method' => \App\Enums\AttendanceMethod::Manual,
+        ]);
+
+        $preview = app(ReportService::class)->preview(
+            'research_attendance',
+            Carbon::yesterday()->toDateString(),
+            $today,
+        );
+
+        $this->assertStringContainsString('1 identified learner', $preview->narrative);
+        $this->assertStringContainsString('50.00%', $preview->narrative);
+        $this->assertStringContainsString('classified as Very Low', $preview->narrative);
+        $this->assertStringContainsString('Grade 10 (1 learner)', $preview->narrative);
+        $this->assertStringContainsString('gate check-ins', $preview->narrativeNote);
+        $this->assertStringContainsString('GateOnly', $preview->rows[0]['name']);
+    }
+
+    public function test_reports_month_filter_covers_the_full_month(): void
+    {
+        Livewire::actingAs($this->admin)
+            ->test(ReportsIndex::class)
+            ->set('periodMode', 'month')
+            ->set('month', '2026-09')
+            ->assertSet('dateFrom', '2026-09-01')
+            ->assertSet('dateTo', '2026-09-30')
+            ->set('reportType', 'research_attendance')
+            ->set('studyContext', 'before the implementation of the LAKBAY-GABAY Program')
+            ->assertSee('Research Attendance Report')
+            ->assertSee('Table 2. Adopted attendance interpretation')
+            ->assertSee('Fairly Satisfactory')
+            ->assertSee('LAKBAY-GABAY');
+    }
 }

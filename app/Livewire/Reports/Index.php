@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\GradeLevel;
 use App\Models\Section;
 use App\Services\Reports\ReportService;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -21,10 +22,19 @@ class Index extends Component
     public string $reportType = 'attendance_summary';
 
     #[Url]
+    public string $periodMode = 'range';
+
+    #[Url]
+    public string $month = '';
+
+    #[Url]
     public string $dateFrom = '';
 
     #[Url]
     public string $dateTo = '';
+
+    #[Url]
+    public string $studyContext = '';
 
     #[Url]
     public string $department = '';
@@ -39,6 +49,20 @@ class Index extends Component
     {
         abort_unless(auth()->user()?->can('reports.view'), 403);
 
+        if (! in_array($this->periodMode, ['range', 'month'], true)) {
+            $this->periodMode = 'range';
+        }
+
+        if ($this->periodMode === 'month') {
+            if ($this->month === '') {
+                $this->month = now()->format('Y-m');
+            }
+
+            $this->syncMonthRange();
+
+            return;
+        }
+
         if ($this->dateFrom === '') {
             $this->dateFrom = now()->startOfMonth()->toDateString();
         }
@@ -46,6 +70,44 @@ class Index extends Component
         if ($this->dateTo === '') {
             $this->dateTo = now()->toDateString();
         }
+    }
+
+    public function updatedPeriodMode(): void
+    {
+        if ($this->periodMode !== 'month') {
+            $this->periodMode = 'range';
+
+            return;
+        }
+
+        if ($this->month === '') {
+            $this->month = $this->dateFrom !== ''
+                ? Carbon::parse($this->dateFrom)->format('Y-m')
+                : now()->format('Y-m');
+        }
+
+        $this->syncMonthRange();
+    }
+
+    public function updatedMonth(): void
+    {
+        $this->periodMode = 'month';
+        $this->syncMonthRange();
+    }
+
+    protected function syncMonthRange(): void
+    {
+        if (! preg_match('/^\d{4}-\d{2}$/', $this->month)) {
+            return;
+        }
+
+        $start = Carbon::createFromFormat('!Y-m', $this->month);
+        if ($start === false) {
+            return;
+        }
+
+        $this->dateFrom = $start->startOfMonth()->toDateString();
+        $this->dateTo = $start->copy()->endOfMonth()->toDateString();
     }
 
     public function updatedDepartment(): void
@@ -89,6 +151,7 @@ class Index extends Component
             'reportType' => ['required', 'string', 'in:'.implode(',', array_keys($reportService->reportTypes()))],
             'dateFrom' => ['required', 'date'],
             'dateTo' => ['required', 'date', 'after_or_equal:dateFrom'],
+            'studyContext' => ['nullable', 'string', 'max:180'],
         ]);
 
         return $reportService->preview(
@@ -96,6 +159,7 @@ class Index extends Component
             $this->dateFrom,
             $this->dateTo,
             $this->filters(),
+            ['study_context' => $this->studyContext],
         );
     }
 
