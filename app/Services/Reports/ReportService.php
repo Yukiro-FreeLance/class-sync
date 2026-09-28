@@ -44,19 +44,34 @@ class ReportService
     }
 
     /**
-     * Adopted attendance interpretation used by the research report.
-     * 77.29% falls in 75.00–79.99 and is classified as Low.
+     * Statuses that can be included in the research report percentage breakdown.
+     *
+     * @return array<string, array{label: string, color: string}>
+     */
+    public function researchStatusOptions(): array
+    {
+        return [
+            'present' => ['label' => 'Present', 'color' => '#10b981'],
+            'late' => ['label' => 'Late', 'color' => '#f59e0b'],
+            'absent' => ['label' => 'Absent', 'color' => '#ef4444'],
+            'excused' => ['label' => 'Excused', 'color' => '#6366f1'],
+            'half_day' => ['label' => 'Half Day', 'color' => '#8b5cf6'],
+        ];
+    }
+
+    /**
+     * Adopted from Delfin (2019). 77.29% is below 80% and is classified as Very Low.
      *
      * @return array{rating: string, interpretation: string, color: string}
      */
     public function interpretAttendanceRate(float $rate): array
     {
         return match (true) {
-            $rate >= 90 => ['rating' => 'Outstanding', 'interpretation' => 'Very High', 'color' => '#059669'],
-            $rate >= 85 => ['rating' => 'Very Satisfactory', 'interpretation' => 'High', 'color' => '#10b981'],
-            $rate >= 80 => ['rating' => 'Satisfactory', 'interpretation' => 'Average', 'color' => '#d97706'],
-            $rate >= 75 => ['rating' => 'Fairly Satisfactory', 'interpretation' => 'Low', 'color' => '#ea580c'],
-            default => ['rating' => 'Did Not Meet Expectations', 'interpretation' => 'Very Low', 'color' => '#dc2626'],
+            $rate >= 95 => ['rating' => 'Very High', 'interpretation' => 'Very High', 'color' => '#059669'],
+            $rate >= 90 => ['rating' => 'High', 'interpretation' => 'High', 'color' => '#10b981'],
+            $rate >= 85 => ['rating' => 'Moderate', 'interpretation' => 'Moderate', 'color' => '#d97706'],
+            $rate >= 80 => ['rating' => 'Low', 'interpretation' => 'Low', 'color' => '#ea580c'],
+            default => ['rating' => 'Very Low', 'interpretation' => 'Very Low', 'color' => '#dc2626'],
         };
     }
 
@@ -529,7 +544,7 @@ class ReportService
      * adopted interpretation, grade distribution, and bar-chart series.
      *
      * @param  array{department?: ?int, grade?: ?int, section?: ?int}  $filters
-     * @param  array{study_context?: ?string}  $options
+     * @param  array{study_context?: ?string, statuses?: list<string>}  $options
      */
     protected function researchAttendance(Carbon $from, Carbon $to, string $periodLabel, array $filters, array $options): ReportPreview
     {
@@ -545,13 +560,32 @@ class ReportService
 
         $records = $records->filter(fn ($record) => $record->student_id && $record->student)->values();
 
+        $statusOptions = $this->researchStatusOptions();
+        $requestedStatuses = array_values(array_filter(
+            (array) ($options['statuses'] ?? []),
+            fn ($code) => is_string($code) && isset($statusOptions[$code]),
+        ));
+        $applyStatusFilter = $requestedStatuses !== [] && count($requestedStatuses) < count($statusOptions);
+        $visibleCodes = $applyStatusFilter ? $requestedStatuses : array_keys($statusOptions);
+
+        if ($applyStatusFilter) {
+            $records = $records
+                ->filter(fn ($record) => in_array($this->attendanceStatusCode($record, $usesClassLogs), $visibleCodes, true))
+                ->values();
+        }
+
         $sourceNote = $usesClassLogs
             ? 'Rates use class attendance. A record counts as attended when its remark is set to count as present (Present and Late, by default).'
             : 'Rates use gate check-ins. Present and Late count as attended.';
+        $sourceNote .= ' Interpretation is adopted from Delfin (2019).';
+        if ($applyStatusFilter) {
+            $selectedLabels = collect($visibleCodes)->map(fn (string $code) => $statusOptions[$code]['label'])->join(', ', ' and ');
+            $sourceNote .= ' Percentages include only these statuses: '.$selectedLabels.'.';
+        }
 
         $learnerRows = $records
             ->groupBy('student_id')
-            ->map(function (Collection $logs) use ($usesClassLogs) {
+            ->map(function (Collection $logs) use ($usesClassLogs, $visibleCodes) {
                 $record = $logs->first();
                 $student = $record->student;
                 $gradeLevel = $student->gradeLevel;
@@ -564,6 +598,16 @@ class ReportService
                 $total = $logs->count();
                 $rate = $total > 0 ? round(($present / $total) * 100, 2) : 0.0;
                 $band = $this->interpretAttendanceRate($rate);
+                $statusCounts = [];
+                $shares = [];
+
+                foreach ($visibleCodes as $code) {
+                    $count = $logs->filter(fn ($log) => $this->attendanceStatusCode($log, $usesClassLogs) === $code)->count();
+                    $statusCounts[$code] = $count;
+                    $shares[$code.'_share'] = $total > 0
+                        ? number_format(round(($count / $total) * 100, 2), 2).'% ('.$count.')'
+                        : '—';
+                }
 
                 return [
                     'student_number' => $student->student_number,
@@ -572,11 +616,13 @@ class ReportService
                     'section' => $student->section?->name ?? '—',
                     'present' => $present,
                     'records' => $total,
+                    ...$shares,
                     'rate' => number_format($rate, 2).'%',
                     'interpretation' => $band['interpretation'],
                     '_rate' => $rate,
                     '_sort' => $gradeLevel?->sort_order ?? 999,
                     '_grade_id' => $gradeLevel?->id ?? 0,
+                    '_status_counts' => $statusCounts,
                 ];
             })
             ->sortBy(['_sort', 'name'])
@@ -590,17 +636,26 @@ class ReportService
 
         $gradeRows = $learnerRows
             ->groupBy('_grade_id')
-            ->map(function (Collection $group) {
+            ->map(function (Collection $group) use ($visibleCodes) {
                 $present = (int) $group->sum('present');
                 $total = (int) $group->sum('records');
                 $rate = $total > 0 ? round(($present / $total) * 100, 2) : 0.0;
                 $band = $this->interpretAttendanceRate($rate);
+                $shares = [];
+
+                foreach ($visibleCodes as $code) {
+                    $count = (int) $group->sum(fn (array $row) => $row['_status_counts'][$code] ?? 0);
+                    $shares[$code.'_share'] = $total > 0
+                        ? number_format(round(($count / $total) * 100, 2), 2).'%'
+                        : '—';
+                }
 
                 return [
                     'grade' => $group->first()['grade'],
                     'learners' => $group->count(),
                     'present' => $present,
                     'records' => $total,
+                    ...$shares,
                     'rate' => number_format($rate, 2).'%',
                     'interpretation' => $band['interpretation'],
                     '_rate' => $rate,
@@ -612,62 +667,88 @@ class ReportService
             ->values();
 
         $scaleRows = [
-            ['range' => '90.00% – 100%', 'rating' => 'Outstanding', 'interpretation' => 'Very High'],
-            ['range' => '85.00% – 89.99%', 'rating' => 'Very Satisfactory', 'interpretation' => 'High'],
-            ['range' => '80.00% – 84.99%', 'rating' => 'Satisfactory', 'interpretation' => 'Average'],
-            ['range' => '75.00% – 79.99%', 'rating' => 'Fairly Satisfactory', 'interpretation' => 'Low'],
-            ['range' => 'Below 75.00%', 'rating' => 'Did Not Meet Expectations', 'interpretation' => 'Very Low'],
+            ['range' => '95%–100%', 'interpretation' => 'Very High'],
+            ['range' => '90%–94.99%', 'interpretation' => 'High'],
+            ['range' => '85%–89.99%', 'interpretation' => 'Moderate'],
+            ['range' => '80%–84.99%', 'interpretation' => 'Low'],
+            ['range' => 'Below 80%', 'interpretation' => 'Very Low'],
         ];
+
+        $statusRows = $learnerCount === 0 ? [] : $this->statusShareRows($records, $usesClassLogs, $visibleCodes);
+        $statusTableRows = array_map(fn (array $row) => Arr::except($row, ['_percentage', '_code', '_color']), $statusRows);
 
         $narrative = $learnerCount === 0
             ? 'No attendance records were found for '.$periodLabel.'. No learners could be identified in the selected scope.'
-            : $this->researchNarrative($learnerCount, $overallRate, $overallBand['interpretation'], $gradeRows->all(), $periodLabel, $options['study_context'] ?? null);
+            : $this->researchNarrative($learnerCount, $overallRate, $overallBand['interpretation'], $gradeRows->all(), $statusRows, $periodLabel, $options['study_context'] ?? null);
 
-        $charts = $learnerCount === 0 ? [] : $this->researchCharts($from, $to, $records, $usesClassLogs, $gradeRows);
+        $charts = $learnerCount === 0 ? [] : $this->researchCharts($from, $to, $records, $usesClassLogs, $gradeRows, $statusRows);
 
-        $detailRows = $learnerRows->map(fn (array $row) => Arr::except($row, ['_rate', '_sort', '_grade_id']))->all();
-        $gradeTableRows = $gradeRows->map(fn (array $row) => Arr::except($row, ['_rate', '_sort', '_color']))->all();
+        $detailColumns = [
+            ['key' => 'student_number', 'label' => 'Student No.'],
+            ['key' => 'name', 'label' => 'Learner'],
+            ['key' => 'grade', 'label' => 'Grade'],
+            ['key' => 'section', 'label' => 'Section'],
+            ['key' => 'records', 'label' => 'Records', 'align' => 'center'],
+        ];
+        $gradeColumns = [
+            ['key' => 'grade', 'label' => 'Grade'],
+            ['key' => 'learners', 'label' => 'Learners', 'align' => 'center'],
+            ['key' => 'records', 'label' => 'Records', 'align' => 'center'],
+        ];
+
+        foreach ($visibleCodes as $code) {
+            $detailColumns[] = ['key' => $code.'_share', 'label' => $statusOptions[$code]['label'].' %', 'align' => 'center'];
+            $gradeColumns[] = ['key' => $code.'_share', 'label' => $statusOptions[$code]['label'].' %', 'align' => 'center'];
+        }
+
+        $detailColumns[] = ['key' => 'rate', 'label' => 'Attendance rate', 'align' => 'center'];
+        $detailColumns[] = ['key' => 'interpretation', 'label' => 'Interpretation', 'align' => 'center'];
+        $gradeColumns[] = ['key' => 'rate', 'label' => 'Attendance rate', 'align' => 'center'];
+        $gradeColumns[] = ['key' => 'interpretation', 'label' => 'Interpretation', 'align' => 'center'];
+
+        $detailRows = $learnerRows->map(fn (array $row) => Arr::except($row, ['_rate', '_sort', '_grade_id', '_status_counts', 'present']))->all();
+        $gradeTableRows = $gradeRows->map(fn (array $row) => Arr::except($row, ['_rate', '_sort', '_color', 'present']))->all();
+
+        $summaryStats = [
+            ['label' => 'Identified learners', 'value' => $learnerCount],
+            ['label' => 'Attendance rate', 'value' => $recordTotal > 0 ? number_format($overallRate, 2).'%' : '—', 'hint' => $recordTotal > 0 ? 'Delfin (2019)' : null],
+            ['label' => 'Interpretation', 'value' => $recordTotal > 0 ? $overallBand['interpretation'] : '—'],
+            ['label' => 'Total records', 'value' => $recordTotal],
+        ];
+
+        foreach ($statusRows as $statusRow) {
+            $summaryStats[] = [
+                'label' => $statusRow['status'],
+                'value' => $statusRow['percentage'],
+            ];
+        }
 
         return new ReportPreview(
             title: 'Research Attendance Report',
             periodLabel: $periodLabel,
-            summaryStats: [
-                ['label' => 'Identified learners', 'value' => $learnerCount],
-                ['label' => 'Attendance rate', 'value' => $recordTotal > 0 ? number_format($overallRate, 2).'%' : '—', 'hint' => $recordTotal > 0 ? $overallBand['rating'] : null],
-                ['label' => 'Interpretation', 'value' => $recordTotal > 0 ? $overallBand['interpretation'] : '—'],
-                ['label' => 'Attended records', 'value' => $presentTotal],
-                ['label' => 'Total records', 'value' => $recordTotal],
-                ['label' => 'Grade levels', 'value' => $gradeRows->count()],
-            ],
-            columns: [
-                ['key' => 'student_number', 'label' => 'Student No.'],
-                ['key' => 'name', 'label' => 'Learner'],
-                ['key' => 'grade', 'label' => 'Grade'],
-                ['key' => 'section', 'label' => 'Section'],
-                ['key' => 'present', 'label' => 'Attended', 'align' => 'center'],
-                ['key' => 'records', 'label' => 'Records', 'align' => 'center'],
-                ['key' => 'rate', 'label' => 'Rate', 'align' => 'center'],
-                ['key' => 'interpretation', 'label' => 'Interpretation', 'align' => 'center'],
-            ],
+            summaryStats: $summaryStats,
+            columns: $detailColumns,
             rows: $detailRows,
             tables: array_values(array_filter([
                 $gradeTableRows !== [] ? [
                     'title' => 'Table 1. Attendance rate by grade level',
-                    'columns' => [
-                        ['key' => 'grade', 'label' => 'Grade'],
-                        ['key' => 'learners', 'label' => 'Learners', 'align' => 'center'],
-                        ['key' => 'present', 'label' => 'Attended', 'align' => 'center'],
-                        ['key' => 'records', 'label' => 'Records', 'align' => 'center'],
-                        ['key' => 'rate', 'label' => 'Attendance rate', 'align' => 'center'],
-                        ['key' => 'interpretation', 'label' => 'Interpretation', 'align' => 'center'],
-                    ],
+                    'columns' => $gradeColumns,
                     'rows' => $gradeTableRows,
                 ] : null,
-                [
-                    'title' => 'Table 2. Adopted attendance interpretation',
+                $statusTableRows !== [] ? [
+                    'title' => 'Table 2. Attendance status percentages',
                     'columns' => [
-                        ['key' => 'range', 'label' => 'Attendance rate'],
-                        ['key' => 'rating', 'label' => 'Descriptive rating'],
+                        ['key' => 'status', 'label' => 'Status'],
+                        ['key' => 'records', 'label' => 'Records', 'align' => 'center'],
+                        ['key' => 'percentage', 'label' => 'Percentage', 'align' => 'center'],
+                    ],
+                    'rows' => $statusTableRows,
+                ] : null,
+                [
+                    'title' => 'Table 3. Adopted attendance interpretation',
+                    'note' => 'Adopted from Delfin (2019).',
+                    'columns' => [
+                        ['key' => 'range', 'label' => 'Attendance Percentage'],
                         ['key' => 'interpretation', 'label' => 'Interpretation'],
                     ],
                     'rows' => $scaleRows,
@@ -677,14 +758,15 @@ class ReportService
             charts: $charts,
             narrative: $narrative,
             narrativeNote: $learnerCount === 0 ? null : $sourceNote,
-            rowsTitle: $detailRows !== [] ? 'Table 3. Attendance of identified learners' : null,
+            rowsTitle: $detailRows !== [] ? 'Table 4. Attendance of identified learners' : null,
         );
     }
 
     /**
      * @param  list<array<string, mixed>>  $gradeRows
+     * @param  list<array<string, mixed>>  $statusRows
      */
-    protected function researchNarrative(int $learnerCount, float $rate, string $interpretation, array $gradeRows, string $periodLabel, ?string $studyContext): string
+    protected function researchNarrative(int $learnerCount, float $rate, string $interpretation, array $gradeRows, array $statusRows, string $periodLabel, ?string $studyContext): string
     {
         $context = trim(strip_tags((string) $studyContext));
         $context = rtrim($context, " \t\n\r\0\x0B.");
@@ -698,7 +780,35 @@ class ReportService
         return 'The attendance records of the '.$learnerLabel.' were examined '.$examined
             .'. As shown in Table 1, the overall attendance rate was '.number_format($rate, 2)
             .'%, classified as '.$interpretation.' based on the adopted attendance interpretation. '
+            .$this->describeStatusShares($statusRows).' '
             .$this->describeGradeDistribution($gradeRows);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $statusRows
+     */
+    protected function describeStatusShares(array $statusRows): string
+    {
+        $mentioned = array_values(array_filter($statusRows, fn (array $row) => (int) $row['records'] > 0));
+        if ($mentioned === []) {
+            return 'No status percentages could be computed.';
+        }
+
+        $parts = [];
+        foreach ($mentioned as $index => $row) {
+            $share = number_format((float) $row['_percentage'], 2).'%';
+            $parts[] = $index === 0
+                ? $row['status'].' accounted for '.$share.' of the records'
+                : $row['status'].' for '.$share;
+        }
+
+        $list = match (count($parts)) {
+            1 => $parts[0],
+            2 => $parts[0].' and '.$parts[1],
+            default => implode(', ', array_slice($parts, 0, -1)).', and '.$parts[array_key_last($parts)],
+        };
+
+        return 'As shown in Table 2, '.$list.'.';
     }
 
     /**
@@ -733,9 +843,10 @@ class ReportService
     /**
      * @param  Collection<int, mixed>  $records
      * @param  Collection<int, array<string, mixed>>  $gradeRows
+     * @param  list<array<string, mixed>>  $statusRows
      * @return list<array<string, mixed>>
      */
-    protected function researchCharts(Carbon $from, Carbon $to, Collection $records, bool $usesClassLogs, Collection $gradeRows): array
+    protected function researchCharts(Carbon $from, Carbon $to, Collection $records, bool $usesClassLogs, Collection $gradeRows, array $statusRows = []): array
     {
         $gradeLabels = $gradeRows->pluck('grade')->all();
         $gradeRates = $gradeRows->pluck('_rate')->map(fn ($rate) => (float) $rate)->all();
@@ -796,6 +907,20 @@ class ReportService
                 'suffix' => '',
             ],
             [
+                'key' => 'status_share',
+                'title' => 'Attendance status percentages',
+                'subtitle' => 'Share of the examined records for each selected status',
+                'labels' => array_column($statusRows, 'status'),
+                'datasets' => [[
+                    'label' => 'Percentage',
+                    'data' => array_map(fn (array $row) => (float) $row['_percentage'], $statusRows),
+                    'colors' => array_column($statusRows, '_color'),
+                ]],
+                'yMax' => 100,
+                'suffix' => '%',
+                'wide' => true,
+            ],
+            [
                 'key' => 'trend',
                 'title' => $byPeriod ? 'Daily attendance rate' : 'Monthly attendance rate',
                 'subtitle' => $byPeriod
@@ -812,6 +937,48 @@ class ReportService
                 'wide' => true,
             ],
         ];
+    }
+
+    /**
+     * @param  list<string>  $visibleCodes
+     * @return list<array<string, mixed>>
+     */
+    protected function statusShareRows(Collection $records, bool $usesClassLogs, array $visibleCodes): array
+    {
+        $options = $this->researchStatusOptions();
+        $total = $records->count();
+        $grouped = $records->groupBy(fn ($record) => $this->attendanceStatusCode($record, $usesClassLogs));
+        $rows = [];
+
+        foreach ($visibleCodes as $code) {
+            if (! isset($options[$code])) {
+                continue;
+            }
+
+            $count = $grouped->get($code)?->count() ?? 0;
+            $percentage = $total > 0 ? round(($count / $total) * 100, 2) : 0.0;
+            $rows[] = [
+                'status' => $options[$code]['label'],
+                'records' => $count,
+                'percentage' => number_format($percentage, 2).'%',
+                '_percentage' => $percentage,
+                '_code' => $code,
+                '_color' => $options[$code]['color'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    protected function attendanceStatusCode(mixed $record, bool $usesClassLogs): string
+    {
+        if ($usesClassLogs) {
+            return (string) ($record->remark?->code ?? '');
+        }
+
+        $status = $record->status;
+
+        return $status instanceof AttendanceStatus ? $status->value : (string) $status;
     }
 
     /**

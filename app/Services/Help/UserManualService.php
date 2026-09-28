@@ -217,7 +217,7 @@ class UserManualService
                             'Go to Reports in the sidebar.',
                             'Choose a report type, including Research Attendance Report for a narrative write-up, bar graphs, and grade distribution.',
                             'Filter by a start and end date, or switch Period to Month for a full calendar month.',
-                            'On the research report, add an optional study context such as “before the implementation of the LAKBAY-GABAY Program”. The narrative classifies the attendance rate as Very High, High, Average, Low, or Very Low.',
+                            'On the research report, choose attendance statuses such as Present and Absent to see each status as a percentage. Add an optional study context such as “before the implementation of the LAKBAY-GABAY Program”. The narrative classifies the rate using Delfin (2019): Very High, High, Moderate, Low, or Very Low.',
                             'Preview the results on screen, then export the table as Excel or CSV.',
                         ],
                     ],

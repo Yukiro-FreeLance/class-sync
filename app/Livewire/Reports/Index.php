@@ -36,6 +36,12 @@ class Index extends Component
     #[Url]
     public string $studyContext = '';
 
+    /**
+     * @var list<string>
+     */
+    #[Url]
+    public array $statuses = [];
+
     #[Url]
     public string $department = '';
 
@@ -51,6 +57,15 @@ class Index extends Component
 
         if (! in_array($this->periodMode, ['range', 'month'], true)) {
             $this->periodMode = 'range';
+        }
+
+        $this->statuses = array_values(array_intersect(
+            $this->statuses,
+            array_keys($reportService->researchStatusOptions()),
+        ));
+
+        if ($this->reportType === 'research_attendance' && $this->statuses === []) {
+            $this->statuses = array_keys($reportService->researchStatusOptions());
         }
 
         if ($this->periodMode === 'month') {
@@ -110,6 +125,13 @@ class Index extends Component
         $this->dateTo = $start->copy()->endOfMonth()->toDateString();
     }
 
+    public function updatedReportType(ReportService $reportService): void
+    {
+        if ($this->reportType === 'research_attendance' && $this->statuses === []) {
+            $this->statuses = array_keys($reportService->researchStatusOptions());
+        }
+    }
+
     public function updatedDepartment(): void
     {
         $this->reset(['grade', 'section']);
@@ -129,6 +151,7 @@ class Index extends Component
             'department' => $this->department ?: null,
             'grade' => $this->grade ?: null,
             'section' => $this->section ?: null,
+            'statuses' => $this->reportType === 'research_attendance' ? $this->statuses : null,
             'format' => $format,
         ]));
     }
@@ -152,14 +175,25 @@ class Index extends Component
             'dateFrom' => ['required', 'date'],
             'dateTo' => ['required', 'date', 'after_or_equal:dateFrom'],
             'studyContext' => ['nullable', 'string', 'max:180'],
+            'statuses' => ['array'],
+            'statuses.*' => ['string'],
         ]);
+
+        if ($this->reportType === 'research_attendance' && $this->statuses === []) {
+            throw ValidationException::withMessages([
+                'statuses' => 'Select at least one attendance status.',
+            ]);
+        }
 
         return $reportService->preview(
             $this->reportType,
             $this->dateFrom,
             $this->dateTo,
             $this->filters(),
-            ['study_context' => $this->studyContext],
+            [
+                'study_context' => $this->studyContext,
+                'statuses' => $this->statuses,
+            ],
         );
     }
 
@@ -194,6 +228,7 @@ class Index extends Component
                 ->orderBy('name')
                 ->get(),
             'canExport' => auth()->user()?->can('reports.export') ?? false,
+            'statusOptions' => $reportService->researchStatusOptions(),
         ]);
     }
 }

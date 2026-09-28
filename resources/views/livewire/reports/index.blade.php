@@ -64,6 +64,19 @@
 
                     @if ($reportType === 'research_attendance')
                         <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Attendance statuses</p>
+                            <div class="mt-2 space-y-1.5">
+                                @foreach ($statusOptions as $value => $option)
+                                    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                        <input type="checkbox" value="{{ $value }}" wire:model.live="statuses" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                                        <span class="h-2.5 w-2.5 rounded-full shrink-0" style="background: {{ $option['color'] }}"></span>
+                                        {{ $option['label'] }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1">Percentages are the share of records in the selected statuses. Attendance rate still counts Present and Late as attended.</p>
+                        </div>
+                        <div>
                             <x-input-label value="Study context" />
                             <textarea wire:model.live.debounce.400ms="studyContext" rows="3" maxlength="180"
                                 class="mt-1 input-field"
@@ -163,7 +176,7 @@
                             @foreach ($preview->charts as $chart)
                                 <div
                                     @class(['rounded-xl border border-surface-border dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 p-4', 'lg:col-span-2' => ! empty($chart['wide'])])
-                                    wire:key="report-chart-{{ $reportType }}-{{ $dateFrom }}-{{ $dateTo }}-{{ $department }}-{{ $grade }}-{{ $section }}-{{ $chart['key'] }}"
+                                    wire:key="report-chart-{{ $reportType }}-{{ $dateFrom }}-{{ $dateTo }}-{{ $department }}-{{ $grade }}-{{ $section }}-{{ implode('-', $statuses) }}-{{ $chart['key'] }}"
                                     wire:ignore
                                     x-data="reportBarChart(@js($chart['labels']), @js($chart['datasets']), @js($chart['yMax'] ?? null), @js($chart['suffix'] ?? ''))"
                                 >
@@ -182,7 +195,7 @@
                                 @foreach ([
                                     'Very High' => '#059669',
                                     'High' => '#10b981',
-                                    'Average' => '#d97706',
+                                    'Moderate' => '#d97706',
                                     'Low' => '#ea580c',
                                     'Very Low' => '#dc2626',
                                 ] as $label => $color)
@@ -205,6 +218,9 @@
                             @foreach ($preview->tables as $table)
                                 <div class="mb-6">
                                     <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">{{ $table['title'] }}</h3>
+                                    @if (! empty($table['note']))
+                                        <p class="text-xs italic text-slate-500 mb-2">{{ $table['note'] }}</p>
+                                    @endif
                                     <div class="overflow-x-auto">
                                         <table class="w-full data-table text-sm">
                                             <thead>
@@ -267,6 +283,9 @@
                         @foreach ($preview->tables as $table)
                             <div class="mb-6">
                                 <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">{{ $table['title'] }}</h3>
+                                @if (! empty($table['note']))
+                                    <p class="text-xs italic text-slate-500 mb-2">{{ $table['note'] }}</p>
+                                @endif
                                 <div class="overflow-x-auto">
                                     <table class="w-full data-table text-sm">
                                         <thead>

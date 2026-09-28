@@ -247,10 +247,12 @@ class ReportTest extends TestCase
     {
         $service = app(ReportService::class);
 
-        $this->assertSame('Low', $service->interpretAttendanceRate(77.29)['interpretation']);
-        $this->assertSame('Very High', $service->interpretAttendanceRate(90)['interpretation']);
-        $this->assertSame('Average', $service->interpretAttendanceRate(80)['interpretation']);
-        $this->assertSame('Very Low', $service->interpretAttendanceRate(74.99)['interpretation']);
+        $this->assertSame('Very Low', $service->interpretAttendanceRate(77.29)['interpretation']);
+        $this->assertSame('High', $service->interpretAttendanceRate(90)['interpretation']);
+        $this->assertSame('Very High', $service->interpretAttendanceRate(95)['interpretation']);
+        $this->assertSame('Moderate', $service->interpretAttendanceRate(85)['interpretation']);
+        $this->assertSame('Low', $service->interpretAttendanceRate(80)['interpretation']);
+        $this->assertSame('Very Low', $service->interpretAttendanceRate(79.99)['interpretation']);
 
         $from = Carbon::today()->subDays(3)->toDateString();
         $to = Carbon::today()->toDateString();
@@ -258,8 +260,8 @@ class ReportTest extends TestCase
         $grade8 = GradeLevel::factory()->create(['name' => 'Grade 8', 'sort_order' => 8]);
         $section7 = Section::factory()->create(['grade_level_id' => $grade7->id, 'name' => 'Rizal']);
         $section8 = Section::factory()->create(['grade_level_id' => $grade8->id, 'name' => 'Mabini']);
-        $present = AttendanceRemark::query()->where('counts_as_present', true)->first();
-        $absent = AttendanceRemark::query()->where('counts_as_present', false)->first();
+        $present = AttendanceRemark::query()->where('code', 'present')->first();
+        $absent = AttendanceRemark::query()->where('code', 'absent')->first();
 
         $students = [
             Student::factory()->create([
@@ -300,21 +302,34 @@ class ReportTest extends TestCase
         $this->assertStringContainsString('2 identified learners', $preview->narrative);
         $this->assertStringContainsString('before the implementation of the LAKBAY-GABAY Program', $preview->narrative);
         $this->assertStringContainsString('75.00%', $preview->narrative);
-        $this->assertStringContainsString('classified as Low', $preview->narrative);
+        $this->assertStringContainsString('classified as Very Low', $preview->narrative);
+        $this->assertStringContainsString('Present accounted for 75.00%', $preview->narrative);
+        $this->assertStringContainsString('Absent for 25.00%', $preview->narrative);
         $this->assertStringContainsString('Grade 7 (1 learner)', $preview->narrative);
         $this->assertStringContainsString('Grade 8 (1)', $preview->narrative);
-        $this->assertCount(3, $preview->charts);
+        $this->assertCount(4, $preview->charts);
         $this->assertSame('Attendance rate by grade', $preview->charts[0]['title']);
         $this->assertSame([75.0, 75.0], $preview->charts[0]['datasets'][0]['data']);
         $this->assertSame([1, 1], $preview->charts[1]['datasets'][0]['data']);
+        $this->assertSame('Attendance status percentages', $preview->charts[2]['title']);
         $this->assertCount(2, $preview->rows);
-        $this->assertSame('Low', $preview->rows[0]['interpretation']);
+        $this->assertSame('Very Low', $preview->rows[0]['interpretation']);
+        $this->assertSame('75.00% (3)', $preview->rows[0]['present_share']);
+        $this->assertSame('25.00% (1)', $preview->rows[0]['absent_share']);
 
         $table = collect($preview->tables)->firstWhere('title', 'Table 1. Attendance rate by grade level');
         $this->assertNotNull($table);
         $this->assertSame('Grade 7', $table['rows'][0]['grade']);
         $this->assertSame(1, $table['rows'][0]['learners']);
-        $this->assertNotNull(collect($preview->tables)->firstWhere('title', 'Table 2. Adopted attendance interpretation'));
+        $statusTable = collect($preview->tables)->firstWhere('title', 'Table 2. Attendance status percentages');
+        $this->assertNotNull($statusTable);
+        $this->assertSame('75.00%', collect($statusTable['rows'])->firstWhere('status', 'Present')['percentage']);
+        $scale = collect($preview->tables)->firstWhere('title', 'Table 3. Adopted attendance interpretation');
+        $this->assertNotNull($scale);
+        $this->assertSame('Adopted from Delfin (2019).', $scale['note']);
+        $this->assertSame('95%–100%', $scale['rows'][0]['range']);
+        $this->assertSame('Very High', $scale['rows'][0]['interpretation']);
+        $this->assertSame('Below 80%', $scale['rows'][4]['range']);
 
         Livewire::actingAs($this->admin)
             ->test(ReportsIndex::class)
@@ -325,8 +340,10 @@ class ReportTest extends TestCase
             ->assertSee('Attendance rate by grade')
             ->assertSee('Identified learners by grade')
             ->assertSee('Table 1. Attendance rate by grade level')
-            ->assertSee('Table 3. Attendance of identified learners')
-            ->assertSee('classified as Low')
+            ->assertSee('Table 2. Attendance status percentages')
+            ->assertSee('Table 4. Attendance of identified learners')
+            ->assertSee('classified as Very Low')
+            ->assertSee('Adopted from Delfin (2019).')
             ->assertSee('LAKBAY-GABAY Program');
     }
 
@@ -381,8 +398,50 @@ class ReportTest extends TestCase
             ->set('reportType', 'research_attendance')
             ->set('studyContext', 'before the implementation of the LAKBAY-GABAY Program')
             ->assertSee('Research Attendance Report')
-            ->assertSee('Table 2. Adopted attendance interpretation')
-            ->assertSee('Fairly Satisfactory')
+            ->assertSee('Table 3. Adopted attendance interpretation')
+            ->assertSee('95%–100%')
+            ->assertSee('Moderate')
+            ->assertSee('Below 80%')
+            ->assertSee('Delfin (2019)')
             ->assertSee('LAKBAY-GABAY');
+    }
+
+    public function test_research_report_status_filter_recalculates_percentages(): void
+    {
+        $grade = GradeLevel::factory()->create(['name' => 'Grade 9', 'sort_order' => 9]);
+        $section = Section::factory()->create(['grade_level_id' => $grade->id]);
+        $student = Student::factory()->create([
+            'grade_level_id' => $grade->id,
+            'section_id' => $section->id,
+        ]);
+        $present = AttendanceRemark::query()->where('code', 'present')->first();
+        $late = AttendanceRemark::query()->where('code', 'late')->first();
+        $absent = AttendanceRemark::query()->where('code', 'absent')->first();
+
+        foreach ([$present, $present, $present, $late, $absent] as $index => $remark) {
+            AttendancePeriodLog::query()->create([
+                'student_id' => $student->id,
+                'section_id' => $section->id,
+                'attendance_remark_id' => $remark->id,
+                'date' => Carbon::today()->subDays($index)->toDateString(),
+            ]);
+        }
+
+        $preview = app(ReportService::class)->preview(
+            'research_attendance',
+            Carbon::today()->subDays(4)->toDateString(),
+            Carbon::today()->toDateString(),
+            [],
+            ['statuses' => ['present', 'absent']],
+        );
+
+        $this->assertStringContainsString('75.00%', $preview->narrative);
+        $this->assertStringContainsString('classified as Very Low', $preview->narrative);
+        $this->assertStringContainsString('Present accounted for 75.00%', $preview->narrative);
+        $this->assertStringContainsString('Absent for 25.00%', $preview->narrative);
+
+        $statusTable = collect($preview->tables)->firstWhere('title', 'Table 2. Attendance status percentages');
+        $this->assertCount(2, $statusTable['rows']);
+        $this->assertNull(collect($statusTable['rows'])->firstWhere('status', 'Late'));
     }
 }

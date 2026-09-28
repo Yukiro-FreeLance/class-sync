@@ -25,6 +25,8 @@ class ReportExportController extends Controller
             'department' => ['nullable', 'integer'],
             'grade' => ['nullable', 'integer'],
             'section' => ['nullable', 'integer'],
+            'statuses' => ['nullable', 'array'],
+            'statuses.*' => ['string', 'max:40'],
             'format' => ['nullable', 'in:xlsx,csv'],
         ]);
 
@@ -33,6 +35,7 @@ class ReportExportController extends Controller
             $validated['date_from'],
             $validated['date_to'],
             $this->filtersFrom($validated),
+            ['statuses' => $validated['statuses'] ?? []],
         );
 
         $format = $validated['format'] ?? 'xlsx';
