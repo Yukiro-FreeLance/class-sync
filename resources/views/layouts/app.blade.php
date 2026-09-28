@@ -227,6 +227,95 @@
         </template>
     </div>
 
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('reportBarChart', (labels, datasets, yMax = null, suffix = '') => ({
+                chart: null,
+                labels,
+                datasets,
+                yMax,
+                suffix,
+
+                init() {
+                    this.$nextTick(() => this.render());
+                },
+
+                destroy() {
+                    if (this.chart) {
+                        this.chart.destroy();
+                        this.chart = null;
+                    }
+                },
+
+                render() {
+                    const canvas = this.$refs.canvas;
+
+                    if (!canvas || typeof Chart === 'undefined') {
+                        return;
+                    }
+
+                    const existing = Chart.getChart(canvas);
+
+                    if (existing) {
+                        existing.destroy();
+                    }
+
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const tick = isDark ? '#94a3b8' : '#64748b';
+                    const grid = isDark ? '#334155' : '#f1f5f9';
+
+                    this.chart = new Chart(canvas, {
+                        type: 'bar',
+                        data: {
+                            labels: this.labels,
+                            datasets: this.datasets.map((dataset) => ({
+                                label: dataset.label,
+                                data: dataset.data,
+                                backgroundColor: dataset.colors ?? '#7c3aed',
+                                borderRadius: 6,
+                                maxBarThickness: 42,
+                            })),
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: this.datasets.length > 1 },
+                                tooltip: {
+                                    callbacks: {
+                                        label: (item) => {
+                                            const value = item.parsed.y ?? 0;
+                                            const formatted = this.suffix === '%'
+                                                ? `${Number(value).toFixed(2)}%`
+                                                : `${value}`;
+
+                                            return `${item.dataset.label}: ${formatted}`;
+                                        },
+                                    },
+                                },
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    suggestedMax: this.yMax ?? undefined,
+                                    max: this.yMax ?? undefined,
+                                    ticks: {
+                                        color: tick,
+                                        callback: (value) => (this.suffix ? `${value}${this.suffix}` : value),
+                                    },
+                                    grid: { color: grid },
+                                },
+                                x: {
+                                    ticks: { color: tick },
+                                    grid: { display: false },
+                                },
+                            },
+                        },
+                    });
+                },
+            }));
+        });
+    </script>
     @livewireScripts
     @auth
         <script>
